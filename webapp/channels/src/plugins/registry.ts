@@ -524,7 +524,8 @@ export default class PluginRegistry {
      * Register a tab for the channel settings modal.
      * The component renders in the modal content pane when its tab is selected.
      * Visible tabs are intended to participate in channel-settings availability in later phases.
-     * The component will receive `channel`, `setAreThereUnsavedChanges`, and `showTabSwitchError`.
+     * The component will receive `channel`, `setAreThereUnsavedChanges`, and `registerSaveBarHandlers`
+     * for the host-managed SaveChangesPanel (unsaved changes and blocked tab-switch feedback).
      */
     registerChannelSettingsTab = reArg([
         'uiName',

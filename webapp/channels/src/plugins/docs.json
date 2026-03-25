@@ -49,7 +49,12 @@
             "showTabSwitchError": {
                 "type": { "name": "bool" },
                 "required": false,
-                "desc": "Flag indicating a blocked tab-switch attempt because unsaved changes must be resolved first"
+                "desc": "Deprecated: the host shows SaveChangesPanel for plugin tabs. May be omitted."
+            },
+            "registerSaveBarHandlers": {
+                "type": { "name": "function" },
+                "required": false,
+                "desc": "Registers { save, reset } for the host SaveChangesPanel. Call with null on unmount. Required when the tab may have unsaved changes."
             }
         }
     }

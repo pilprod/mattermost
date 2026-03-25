@@ -58,28 +58,37 @@ jest.mock('utils/url', () => ({
 }));
 
 jest.mock('plugins/pluggable', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const React = require('react');
-
     return function MockPluggable({
         pluggableId,
         pluggableName,
         channel,
         setAreThereUnsavedChanges,
-        showTabSwitchError,
+        registerSaveBarHandlers,
     }: {
         pluggableId: string;
         pluggableName: string;
         channel: {id: string};
         setAreThereUnsavedChanges?: (value: boolean) => void;
-        showTabSwitchError?: boolean;
+        registerSaveBarHandlers?: (handlers: { save: () => Promise<void>; reset: () => void } | null) => void;
     }) {
+        const React = require('react');
+        React.useEffect(() => {
+            if (!registerSaveBarHandlers) {
+                return undefined;
+            }
+            registerSaveBarHandlers({
+                save: async () => {},
+                reset: () => {},
+            });
+            return () => registerSaveBarHandlers(null);
+        }, [registerSaveBarHandlers]);
+
         mockPluggable({
             pluggableId,
             pluggableName,
             channel,
             setAreThereUnsavedChanges,
-            showTabSwitchError,
+            registerSaveBarHandlers,
         });
 
         return React.createElement('div', {
@@ -88,7 +97,7 @@ jest.mock('plugins/pluggable', () => {
             'data-pluggable-name': pluggableName,
             'data-channel-id': channel.id,
             'data-has-set-unsaved-changes': String(Boolean(setAreThereUnsavedChanges)),
-            'data-show-tab-switch-error': String(Boolean(showTabSwitchError)),
+            'data-has-register-save-bar-handlers': String(Boolean(registerSaveBarHandlers)),
         }, [
             'Plugin Tab Content',
             setAreThereUnsavedChanges && React.createElement('button', {
@@ -708,13 +717,18 @@ describe('ChannelSettingsModal', () => {
             });
 
             expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-has-set-unsaved-changes', 'true');
-            expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-show-tab-switch-error', 'false');
+            expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-has-register-save-bar-handlers', 'true');
 
             await userEvent.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+
+            await waitFor(() => {
+                expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeInTheDocument();
+            });
+
             await userEvent.click(screen.getByRole('tab', {name: /info/i}));
 
             await waitFor(() => {
-                expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-show-tab-switch-error', 'true');
+                expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeDisabled();
             });
         });
 

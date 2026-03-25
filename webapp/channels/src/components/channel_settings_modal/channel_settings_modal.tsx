@@ -2,6 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {
+    useCallback,
     useEffect,
     useMemo,
     useState,
@@ -26,6 +27,7 @@ import {getBasePath, isChannelAccessControlEnabled} from 'selectors/general';
 import {getVisibleChannelSettingsTabs} from 'selectors/plugins';
 
 import type {Tab as SidebarTab} from 'components/settings_sidebar/settings_sidebar';
+import SaveChangesPanel from 'components/widgets/modals/components/save_changes_panel';
 
 import Pluggable from 'plugins/pluggable';
 import {focusElement} from 'utils/a11y_utils';
@@ -33,6 +35,7 @@ import Constants from 'utils/constants';
 import {isMinimumEnterpriseAdvancedLicense} from 'utils/license_utils';
 import {isValidUrl} from 'utils/url';
 
+import type {ChannelSettingsTabSaveBarHandlers} from 'types/plugins/channel_settings';
 import type {GlobalState} from 'types/store';
 
 import ChannelSettingsAccessRulesTab from './channel_settings_access_rules_tab';
@@ -157,6 +160,7 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
 
     // Refs
     const modalBodyRef = useRef<HTMLDivElement>(null);
+    const pluginSaveBarHandlersRef = useRef<ChannelSettingsTabSaveBarHandlers | null>(null);
     const pluginSectionLabel = formatMessage({
         id: 'channel_settings.sidebar.plugin_settings',
         defaultMessage: 'PLUGIN SETTINGS',
@@ -244,6 +248,37 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
     if (activePluginRegistration) {
         lastActivePluginRegistrationRef.current = activePluginRegistration;
     }
+
+    const registerPluginSaveBarHandlers = useCallback((handlers: ChannelSettingsTabSaveBarHandlers | null) => {
+        pluginSaveBarHandlersRef.current = handlers;
+    }, []);
+
+    const handlePluginSaveBarSubmit = useCallback(async () => {
+        const handlers = pluginSaveBarHandlersRef.current;
+        if (!handlers) {
+            return;
+        }
+        try {
+            await handlers.save();
+        } catch {
+            // The plugin owns user-visible errors; dirty state remains until the plugin clears it.
+        }
+    }, []);
+
+    const handlePluginSaveBarCancel = useCallback(() => {
+        pluginSaveBarHandlersRef.current?.reset();
+        setAreThereUnsavedChanges(false);
+    }, []);
+
+    const handlePluginSaveBarClose = useCallback(() => {
+        // Host does not use the transient 'saved' state for plugin tabs.
+    }, []);
+
+    useEffect(() => {
+        if (!activePluginRegistration) {
+            pluginSaveBarHandlersRef.current = null;
+        }
+    }, [activePluginRegistration]);
 
     useEffect(() => {
         if (preferredActiveTab !== activeTab && !areThereUnsavedChanges) {
@@ -370,14 +405,34 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
             (areThereUnsavedChanges && getPluginRegistrationId(activeTab) ? lastActivePluginRegistrationRef.current : undefined);
 
         if (pluginRegistration) {
+            const showPluginSavePanel = areThereUnsavedChanges;
+            const pluginPanelHasErrors = showTabSwitchError;
+
             return (
-                <Pluggable
-                    pluggableName='ChannelSettingsTab'
-                    pluggableId={pluginRegistration.id}
-                    channel={channel}
-                    setAreThereUnsavedChanges={setAreThereUnsavedChanges}
-                    showTabSwitchError={showTabSwitchError}
-                />
+                <>
+                    <div className='ChannelSettingsModal__pluginTab'>
+                        <Pluggable
+                            pluggableName='ChannelSettingsTab'
+                            pluggableId={pluginRegistration.id}
+                            channel={channel}
+                            setAreThereUnsavedChanges={setAreThereUnsavedChanges}
+                            registerSaveBarHandlers={registerPluginSaveBarHandlers}
+                        />
+                    </div>
+                    {showPluginSavePanel && (
+                        <SaveChangesPanel
+                            handleSubmit={handlePluginSaveBarSubmit}
+                            handleCancel={handlePluginSaveBarCancel}
+                            handleClose={handlePluginSaveBarClose}
+                            tabChangeError={pluginPanelHasErrors}
+                            state={pluginPanelHasErrors ? 'error' : 'editing'}
+                            cancelButtonText={formatMessage({
+                                id: 'channel_settings.save_changes_panel.reset',
+                                defaultMessage: 'Reset',
+                            })}
+                        />
+                    )}
+                </>
             );
         }
 

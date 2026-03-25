@@ -74,6 +74,12 @@
         }
     }
 
+    &__pluginTab {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 60px;
+    }
+
     &__infoTab {
         display: flex;
         flex-direction: column;
