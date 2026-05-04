@@ -44,17 +44,12 @@
             "setAreThereUnsavedChanges": {
                 "type": { "name": "function" },
                 "required": false,
-                "desc": "Callback to inform the modal whether unsaved changes exist"
-            },
-            "showTabSwitchError": {
-                "type": { "name": "bool" },
-                "required": false,
-                "desc": "Deprecated: the host shows SaveChangesPanel for plugin tabs. May be omitted."
+                "desc": "Callback to inform the modal whether the tab has unsaved changes"
             },
             "registerSaveBarHandlers": {
                 "type": { "name": "function" },
                 "required": false,
-                "desc": "Registers { save, reset } for the host SaveChangesPanel. Call with null on unmount. Required when the tab may have unsaved changes."
+                "desc": "Registers optional { save, reset } handlers for the host SaveChangesPanel. Register handlers before reporting unsaved changes so Save and Reset can run plugin logic. The save handler may return a Promise; rejected saves keep the tab dirty and the plugin should show any user-facing error. Pass null if handlers no longer apply; the host also clears stale handlers when the active tab changes."
             }
         }
     }

@@ -8,8 +8,8 @@ import React, {
     useState,
     useRef,
 } from 'react';
-import {useIntl} from 'react-intl';
-import {useSelector, useDispatch} from 'react-redux';
+import {FormattedMessage, useIntl} from 'react-intl';
+import {shallowEqual, useSelector, useDispatch} from 'react-redux';
 
 import {GenericModal} from '@mattermost/components';
 import type {Channel} from '@mattermost/types/channels';
@@ -17,26 +17,27 @@ import type {Channel} from '@mattermost/types/channels';
 import Permissions from 'mattermost-redux/constants/permissions';
 import {getChannel} from 'mattermost-redux/selectors/entities/channels';
 import {getConfig, getLicense} from 'mattermost-redux/selectors/entities/general';
-import {haveIChannelPermission} from 'mattermost-redux/selectors/entities/roles';
+import {haveIChannelPermission, haveISystemPermission} from 'mattermost-redux/selectors/entities/roles';
 
 import {
     setShowPreviewOnChannelSettingsHeaderModal,
     setShowPreviewOnChannelSettingsPurposeModal,
 } from 'actions/views/textbox';
 import {getBasePath, isChannelAccessControlEnabled} from 'selectors/general';
-import {getVisibleChannelSettingsTabs} from 'selectors/plugins';
+import {getChannelSettingsTabs} from 'selectors/plugins';
 
 import type {Tab as SidebarTab} from 'components/settings_sidebar/settings_sidebar';
+import {normalizePluginIcon} from 'components/settings_sidebar/settings_sidebar';
 import SaveChangesPanel from 'components/widgets/modals/components/save_changes_panel';
 
 import Pluggable from 'plugins/pluggable';
 import {focusElement} from 'utils/a11y_utils';
 import Constants from 'utils/constants';
 import {isMinimumEnterpriseAdvancedLicense} from 'utils/license_utils';
-import {isValidUrl} from 'utils/url';
 
 import type {ChannelSettingsTabSaveBarHandlers} from 'types/plugins/channel_settings';
 import type {GlobalState} from 'types/store';
+import type {ChannelSettingsTabComponent} from 'types/store/plugins';
 
 import ChannelSettingsAccessRulesTab from './channel_settings_access_rules_tab';
 import ChannelSettingsArchiveTab from './channel_settings_archive_tab';
@@ -94,11 +95,88 @@ function getPreferredActiveTab(activeTab: string, visibleBuiltInTabs: SidebarTab
     return visibleBuiltInTabs[0]?.name ?? visiblePluginTabs[0]?.name ?? BuiltInTabIds.INFO;
 }
 
+function getFirstVisibleTab(shouldShowInfoTab: boolean, shouldShowAccessRulesTab: boolean, shouldShowConfigurationTab: boolean, shouldShowArchiveTab: boolean) {
+    if (shouldShowInfoTab) {
+        return BuiltInTabIds.INFO;
+    }
+    if (shouldShowAccessRulesTab) {
+        return BuiltInTabIds.ACCESS_RULES;
+    }
+    if (shouldShowConfigurationTab) {
+        return BuiltInTabIds.CONFIGURATION;
+    }
+    if (shouldShowArchiveTab) {
+        return BuiltInTabIds.ARCHIVE;
+    }
+    return BuiltInTabIds.INFO;
+}
+
+type ChannelSettingsPluginTabProps = {
+    channel: Channel;
+    pluginRegistration: ChannelSettingsTabComponent;
+    areThereUnsavedChanges: boolean;
+    showTabSwitchError: boolean;
+    registerPluginSaveBarHandlers: (handlers: ChannelSettingsTabSaveBarHandlers | null) => void;
+    setPluginUnsavedChanges: (unsaved: boolean) => void;
+    handlePluginSaveBarSubmit: () => void;
+    handlePluginSaveBarCancel: () => void;
+    handlePluginSaveBarClose: () => void;
+};
+
+function ChannelSettingsPluginTab({
+    channel,
+    pluginRegistration,
+    areThereUnsavedChanges,
+    showTabSwitchError,
+    registerPluginSaveBarHandlers,
+    setPluginUnsavedChanges,
+    handlePluginSaveBarSubmit,
+    handlePluginSaveBarCancel,
+    handlePluginSaveBarClose,
+}: ChannelSettingsPluginTabProps) {
+    return (
+        <>
+            <div className='ChannelSettingsModal__pluginTab'>
+                <Pluggable
+                    pluggableName='ChannelSettingsTab'
+                    pluggableId={pluginRegistration.id}
+                    channel={channel}
+                    setAreThereUnsavedChanges={setPluginUnsavedChanges}
+                    registerSaveBarHandlers={registerPluginSaveBarHandlers}
+                />
+            </div>
+            {areThereUnsavedChanges && (
+                <SaveChangesPanel
+                    handleSubmit={handlePluginSaveBarSubmit}
+                    handleCancel={handlePluginSaveBarCancel}
+                    handleClose={handlePluginSaveBarClose}
+                    tabChangeError={showTabSwitchError}
+                    state={showTabSwitchError ? 'error' : 'editing'}
+                    cancelButtonText={
+                        <FormattedMessage
+                            id='channel_settings.save_changes_panel.reset'
+                            defaultMessage='Reset'
+                        />
+                    }
+                />
+            )}
+        </>
+    );
+}
+
 function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}: ChannelSettingsModalProps) {
     const {formatMessage} = useIntl();
     const dispatch = useDispatch();
     const channel = useSelector((state: GlobalState) => getChannel(state, channelId)) as Channel;
-    const visiblePluginTabRegistrations = useSelector((state: GlobalState) => getVisibleChannelSettingsTabs(state, channelId));
+    const visiblePluginTabRegistrations = useSelector((state: GlobalState) => {
+        const currentChannel = getChannel(state, channelId);
+        if (!currentChannel) {
+            return [];
+        }
+
+        return getChannelSettingsTabs(state).filter((registration) => registration.shouldRender?.(state, currentChannel) ?? true);
+    }, shallowEqual);
+    const isDMorGM = channel.type === Constants.DM_CHANNEL || channel.type === Constants.GM_CHANNEL;
     const channelBannerEnabled = isMinimumEnterpriseAdvancedLicense(useSelector(getLicense));
 
     const canManagePublicChannelBanner = useSelector((state: GlobalState) =>
@@ -125,7 +203,24 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
     });
 
     const canManageBanner = channelBannerEnabled && hasManageChannelBannerPermission;
-    const shouldShowConfigurationTab = canManageBanner || canManageChannelTranslation;
+    const canManageSharedChannels = useSelector((state: GlobalState) => {
+        const config = getConfig(state);
+        const connectedWorkspacesEnabled = config?.ExperimentalSharedChannels === 'true';
+        if (!connectedWorkspacesEnabled || isDMorGM) {
+            return false;
+        }
+        return haveISystemPermission(state, {permission: Permissions.MANAGE_SHARED_CHANNELS});
+    });
+    const shouldShowConfigurationTab = canManageBanner || canManageChannelTranslation || canManageSharedChannels;
+
+    const canManageChannelProperties = useSelector((state: GlobalState) => {
+        if (isDMorGM) {
+            return true;
+        }
+        const permission = channel.type === Constants.PRIVATE_CHANNEL ? Permissions.MANAGE_PRIVATE_CHANNEL_PROPERTIES : Permissions.MANAGE_PUBLIC_CHANNEL_PROPERTIES;
+        return haveIChannelPermission(state, channel.team_id, channel.id, permission);
+    });
+    const shouldShowInfoTab = canManageChannelProperties;
 
     const canArchivePrivateChannels = useSelector((state: GlobalState) =>
         haveIChannelPermission(state, channel.team_id, channel.id, Permissions.DELETE_PRIVATE_CHANNEL),
@@ -142,12 +237,26 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
     const basePath = useSelector(getBasePath);
     const channelAdminABACControlEnabled = useSelector(isChannelAccessControlEnabled);
 
-    const shouldShowAccessRulesTab = channelAdminABACControlEnabled && canManageChannelAccessRules && channel.type === Constants.PRIVATE_CHANNEL && !channel.group_constrained;
+    const isPolicyEligibleChannelType = channel.type === Constants.PRIVATE_CHANNEL || channel.type === Constants.OPEN_CHANNEL;
+
+    // Default channels (town-square / off-topic) cannot have ABAC policies —
+    // ValidateChannelEligibilityForAccessControl rejects them on the server, so
+    // showing the Membership Policy tab here would only let the user assemble
+    // rules they can never save.
+    const isDefaultChannel = channel.name === Constants.DEFAULT_CHANNEL || channel.name === Constants.OFFTOPIC_CHANNEL;
+    const shouldShowAccessRulesTab = channelAdminABACControlEnabled && canManageChannelAccessRules && isPolicyEligibleChannelType && !channel.group_constrained && !isDefaultChannel && !channel.shared;
+
+    const shouldShowArchiveTab = channel.name !== Constants.DEFAULT_CHANNEL &&
+        ((channel.type === Constants.PRIVATE_CHANNEL && canArchivePrivateChannels) ||
+        (channel.type === Constants.OPEN_CHANNEL && canArchivePublicChannels));
 
     const [show, setShow] = useState(isOpen);
 
+    // First visible tab (in tab order) for when Info is not available
+    const firstVisibleTab = getFirstVisibleTab(shouldShowInfoTab, shouldShowAccessRulesTab, shouldShowConfigurationTab, shouldShowArchiveTab);
+
     // Active tab
-    const [activeTab, setActiveTab] = useState<string>(BuiltInTabIds.INFO);
+    const [activeTab, setActiveTab] = useState<string>(firstVisibleTab);
 
     // State for showing error in the save changes panel when trying to switch tabs with unsaved changes
     const [showTabSwitchError, setShowTabSwitchError] = useState(false);
@@ -161,10 +270,6 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
     // Refs
     const modalBodyRef = useRef<HTMLDivElement>(null);
     const pluginSaveBarHandlersRef = useRef<ChannelSettingsTabSaveBarHandlers | null>(null);
-    const pluginSectionLabel = formatMessage({
-        id: 'channel_settings.sidebar.plugin_settings',
-        defaultMessage: 'PLUGIN SETTINGS',
-    });
 
     const tabs = useMemo((): SidebarTab[] => {
         return [
@@ -173,12 +278,13 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
                 uiName: formatMessage({id: 'channel_settings.tab.info', defaultMessage: 'Info'}),
                 icon: 'icon icon-information-outline',
                 iconTitle: formatMessage({id: 'generic_icons.info', defaultMessage: 'Info Icon'}),
+                display: shouldShowInfoTab,
             },
             {
                 name: BuiltInTabIds.ACCESS_RULES,
-                uiName: formatMessage({id: 'channel_settings.tab.access_control', defaultMessage: 'Access Control'}),
+                uiName: formatMessage({id: 'channel_settings.tab.membership_policy', defaultMessage: 'Membership Policy'}),
                 icon: 'icon icon-shield-outline',
-                iconTitle: formatMessage({id: 'generic_icons.access_rules', defaultMessage: 'Access Rules Icon'}),
+                iconTitle: formatMessage({id: 'generic_icons.access_rules', defaultMessage: 'Membership Policy Icon'}),
                 display: shouldShowAccessRulesTab,
             },
             {
@@ -204,53 +310,49 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
         channel.name,
         channel.type,
         formatMessage,
+        shouldShowInfoTab,
         shouldShowAccessRulesTab,
         shouldShowConfigurationTab,
     ]);
 
     const pluginTabs = useMemo((): SidebarTab[] => {
         return visiblePluginTabRegistrations.map((registration) => {
-            let icon: SidebarTab['icon'] = 'icon icon-power-plug-outline';
-            if (registration.icon) {
-                if (isValidUrl(registration.icon)) {
-                    icon = {url: registration.icon};
-                } else if (registration.icon.startsWith('/')) {
-                    const normalizedBase = basePath === '/' ? '' : basePath;
-                    icon = {url: `${normalizedBase}${registration.icon}`};
-                } else {
-                    icon = `icon ${registration.icon}`;
-                }
-            }
-
             return {
                 name: getPluginTabName(registration.id),
                 uiName: registration.uiName,
                 iconTitle: registration.uiName,
-                icon,
+                icon: normalizePluginIcon(registration.icon, basePath),
             };
         });
     }, [basePath, visiblePluginTabRegistrations]);
 
     const visibleBuiltInTabs = useMemo(() => tabs.filter((tab) => tab.display !== false), [tabs]);
     const visiblePluginTabs = useMemo(() => pluginTabs.filter((tab) => tab.display !== false), [pluginTabs]);
-    const visibleTabNames = useMemo(() => [...visibleBuiltInTabs, ...visiblePluginTabs].map((tab) => tab.name), [visibleBuiltInTabs, visiblePluginTabs]);
     const preferredActiveTab = useMemo(() => getPreferredActiveTab(activeTab, visibleBuiltInTabs, visiblePluginTabs), [activeTab, visibleBuiltInTabs, visiblePluginTabs]);
-    const activePluginRegistration = useMemo(() => {
-        const registrationId = getPluginRegistrationId(activeTab);
-        if (!registrationId) {
+    const activePluginRegistrationId = getPluginRegistrationId(activeTab);
+    const visibleActivePluginRegistration = useMemo(() => {
+        if (!activePluginRegistrationId) {
             return undefined;
         }
 
-        return visiblePluginTabRegistrations.find((registration) => registration.id === registrationId);
-    }, [activeTab, visiblePluginTabRegistrations]);
+        return visiblePluginTabRegistrations.find((registration) => registration.id === activePluginRegistrationId);
+    }, [activePluginRegistrationId, visiblePluginTabRegistrations]);
 
-    const lastActivePluginRegistrationRef = useRef(activePluginRegistration);
-    if (activePluginRegistration) {
-        lastActivePluginRegistrationRef.current = activePluginRegistration;
-    }
+    const lastActivePluginRegistrationRef = useRef<ChannelSettingsTabComponent | undefined>(visibleActivePluginRegistration);
+
+    const clearPluginSaveBarHandlers = useCallback(() => {
+        pluginSaveBarHandlersRef.current = null;
+    }, []);
 
     const registerPluginSaveBarHandlers = useCallback((handlers: ChannelSettingsTabSaveBarHandlers | null) => {
         pluginSaveBarHandlersRef.current = handlers;
+    }, []);
+
+    const setPluginUnsavedChanges = useCallback((unsaved: boolean) => {
+        setAreThereUnsavedChanges(unsaved);
+        if (!unsaved) {
+            setHasBeenWarned(false);
+        }
     }, []);
 
     const handlePluginSaveBarSubmit = useCallback(async () => {
@@ -260,31 +362,38 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
         }
         try {
             await handlers.save();
+            setPluginUnsavedChanges(false);
         } catch {
             // The plugin owns user-visible errors; dirty state remains until the plugin clears it.
         }
-    }, []);
+    }, [setPluginUnsavedChanges]);
 
     const handlePluginSaveBarCancel = useCallback(() => {
         pluginSaveBarHandlersRef.current?.reset();
-        setAreThereUnsavedChanges(false);
-    }, []);
+        setPluginUnsavedChanges(false);
+    }, [setPluginUnsavedChanges]);
 
     const handlePluginSaveBarClose = useCallback(() => {
         // Host does not use the transient 'saved' state for plugin tabs.
     }, []);
 
     useEffect(() => {
-        if (!activePluginRegistration) {
-            pluginSaveBarHandlersRef.current = null;
+        if (visibleActivePluginRegistration) {
+            lastActivePluginRegistrationRef.current = visibleActivePluginRegistration;
+            return;
         }
-    }, [activePluginRegistration]);
+
+        if (!areThereUnsavedChanges) {
+            clearPluginSaveBarHandlers();
+        }
+    }, [areThereUnsavedChanges, visibleActivePluginRegistration, clearPluginSaveBarHandlers]);
 
     useEffect(() => {
         if (preferredActiveTab !== activeTab && !areThereUnsavedChanges) {
+            clearPluginSaveBarHandlers();
             setActiveTab(preferredActiveTab);
         }
-    }, [activeTab, preferredActiveTab, visibleTabNames, areThereUnsavedChanges]);
+    }, [activeTab, preferredActiveTab, areThereUnsavedChanges, clearPluginSaveBarHandlers]);
 
     // Called to set the active tab, prompting save changes panel if there are unsaved changes
     const updateTab = (newTab: string) => {
@@ -301,7 +410,10 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
             return;
         }
 
-        setActiveTab(newTab);
+        if (newTab !== activeTab) {
+            clearPluginSaveBarHandlers();
+            setActiveTab(newTab);
+        }
 
         if (modalBodyRef.current) {
             modalBodyRef.current.scrollTop = 0;
@@ -335,6 +447,7 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
         // Clear anything if needed
         setActiveTab(BuiltInTabIds.INFO);
         setHasBeenWarned(false);
+        clearPluginSaveBarHandlers();
         if (focusOriginElement) {
             focusElement(focusOriginElement, true);
         }
@@ -359,6 +472,7 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
                 showTabSwitchError={showTabSwitchError}
                 canManageChannelTranslation={canManageChannelTranslation}
                 canManageBanner={canManageBanner}
+                canManageSharedChannels={canManageSharedChannels}
             />
         );
     };
@@ -401,38 +515,23 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
 
     // Renders content based on active tab
     const renderTabContent = () => {
-        const pluginRegistration = activePluginRegistration ??
-            (areThereUnsavedChanges && getPluginRegistrationId(activeTab) ? lastActivePluginRegistrationRef.current : undefined);
+        const lastActivePluginRegistration = lastActivePluginRegistrationRef.current;
+        const pluginRegistration = visibleActivePluginRegistration ??
+            (areThereUnsavedChanges && activePluginRegistrationId && lastActivePluginRegistration?.id === activePluginRegistrationId ? lastActivePluginRegistration : undefined);
 
         if (pluginRegistration) {
-            const showPluginSavePanel = areThereUnsavedChanges;
-            const pluginPanelHasErrors = showTabSwitchError;
-
             return (
-                <>
-                    <div className='ChannelSettingsModal__pluginTab'>
-                        <Pluggable
-                            pluggableName='ChannelSettingsTab'
-                            pluggableId={pluginRegistration.id}
-                            channel={channel}
-                            setAreThereUnsavedChanges={setAreThereUnsavedChanges}
-                            registerSaveBarHandlers={registerPluginSaveBarHandlers}
-                        />
-                    </div>
-                    {showPluginSavePanel && (
-                        <SaveChangesPanel
-                            handleSubmit={handlePluginSaveBarSubmit}
-                            handleCancel={handlePluginSaveBarCancel}
-                            handleClose={handlePluginSaveBarClose}
-                            tabChangeError={pluginPanelHasErrors}
-                            state={pluginPanelHasErrors ? 'error' : 'editing'}
-                            cancelButtonText={formatMessage({
-                                id: 'channel_settings.save_changes_panel.reset',
-                                defaultMessage: 'Reset',
-                            })}
-                        />
-                    )}
-                </>
+                <ChannelSettingsPluginTab
+                    channel={channel}
+                    pluginRegistration={pluginRegistration}
+                    areThereUnsavedChanges={areThereUnsavedChanges}
+                    showTabSwitchError={showTabSwitchError}
+                    registerPluginSaveBarHandlers={registerPluginSaveBarHandlers}
+                    setPluginUnsavedChanges={setPluginUnsavedChanges}
+                    handlePluginSaveBarSubmit={handlePluginSaveBarSubmit}
+                    handlePluginSaveBarCancel={handlePluginSaveBarCancel}
+                    handlePluginSaveBarClose={handlePluginSaveBarClose}
+                />
             );
         }
 
@@ -451,8 +550,6 @@ function ChannelSettingsModal({channelId, isOpen, onExited, focusOriginElement}:
                         <SettingsSidebar
                             tabs={tabs}
                             pluginTabs={pluginTabs}
-                            pluginSectionLabel={pluginSectionLabel}
-                            pluginSectionHeadingId='channelSettingsModal_pluginSettings_header'
                             activeTab={activeTab}
                             updateTab={updateTab}
                         />

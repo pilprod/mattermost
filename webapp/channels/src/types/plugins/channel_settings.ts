@@ -8,7 +8,11 @@ import type {Channel} from '@mattermost/types/channels';
 import type {GlobalState} from 'types/store';
 
 export type ChannelSettingsTabSaveBarHandlers = {
+
+    /** Saves the plugin tab's pending changes. Reject to keep the tab dirty and let the plugin display an error. */
     save: () => Promise<void>;
+
+    /** Restores the plugin tab to its last saved state when the user clicks Reset. */
     reset: () => void;
 };
 
@@ -21,14 +25,9 @@ export type ChannelSettingsTabProps = {
     setAreThereUnsavedChanges?: (unsaved: boolean) => void;
 
     /**
-     * @deprecated The host modal shows SaveChangesPanel for plugin tabs; do not render tab-switch error UI.
-     * This prop may be unset when the host owns the save bar.
-     */
-    showTabSwitchError?: boolean;
-
-    /**
-     * Registers save/discard handlers for the host-managed SaveChangesPanel (channel settings plugin tabs).
-     * Call with `null` on unmount. Required when the tab may report unsaved changes.
+     * Registers optional handlers for the host-managed SaveChangesPanel.
+     * Register handlers before reporting unsaved changes so Save and Reset can run plugin logic.
+     * Pass `null` if handlers no longer apply; the host also clears stale handlers when the active tab changes.
      */
     registerSaveBarHandlers?: (handlers: ChannelSettingsTabSaveBarHandlers | null) => void;
 };

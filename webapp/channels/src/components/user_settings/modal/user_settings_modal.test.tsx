@@ -279,6 +279,35 @@ describe('plugin tabs use the correct icon', () => {
         expect(element!.getAttribute('src')).toBe(icon);
     });
 
+    it('prefixes root-relative icon paths with the base path', () => {
+        const uiName = 'plugin_a';
+        const icon = '/plugins/com.mattermost.plugin_a/public/icon.svg';
+        const state: DeepPartial<GlobalState> = {
+            entities: {
+                general: {
+                    config: {
+                        SiteURL: 'http://localhost:8065/subpath',
+                    },
+                },
+            },
+            plugins: {
+                userSettings: {
+                    plugin_a: {
+                        id: 'plugin_a',
+                        sections: [],
+                        uiName,
+                        icon,
+                    },
+                },
+            },
+        };
+        renderWithContext(<UserSettingsModal {...baseProps}/>, mergeObjects(baseState, state));
+
+        const element = screen.queryByAltText(uiName);
+        expect(element).toBeInTheDocument();
+        expect(element!.getAttribute('src')).toBe(`/subpath${icon}`);
+    });
+
     it('use class name when icon name provided', () => {
         const uiName = 'plugin_a';
         const icon = 'icon-phone-in-talk';

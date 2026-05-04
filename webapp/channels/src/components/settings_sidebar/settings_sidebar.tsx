@@ -7,6 +7,7 @@ import {FormattedMessage} from 'react-intl';
 
 import Constants from 'utils/constants';
 import {isKeyPressed} from 'utils/keyboard';
+import {isValidUrl} from 'utils/url';
 
 export type Tab = {
     icon: string | {url: string};
@@ -21,11 +22,26 @@ export type Props = {
     activeTab?: string;
     tabs: Tab[];
     pluginTabs?: Tab[];
-    pluginSectionLabel?: string;
-    pluginSectionHeadingId?: string;
     updateTab: (name: string) => void;
     isMobileView: boolean;
 };
+
+export function normalizePluginIcon(icon?: string, basePath = ''): Tab['icon'] {
+    if (!icon) {
+        return 'icon icon-power-plug-outline';
+    }
+
+    if (isValidUrl(icon)) {
+        return {url: icon};
+    }
+
+    if (icon.startsWith('/')) {
+        const normalizedBasePath = basePath === '/' ? '' : basePath;
+        return {url: `${normalizedBasePath}${icon}`};
+    }
+
+    return `icon ${icon}`;
+}
 
 export default class SettingsSidebar extends React.PureComponent<Props> {
     buttonRefs: Map<string, HTMLButtonElement>;
@@ -161,27 +177,24 @@ export default class SettingsSidebar extends React.PureComponent<Props> {
         if (this.props.pluginTabs?.length) {
             const visiblePluginTabs = this.props.pluginTabs.filter((tab) => tab.display !== false);
             if (visiblePluginTabs.length) {
-                const pluginSectionHeadingId = this.props.pluginSectionHeadingId ?? 'settingsSidebar_pluginSection_header';
                 pluginTabList = (
                     <>
                         <hr/>
                         <div
                             role='group'
-                            aria-labelledby={pluginSectionHeadingId}
+                            aria-labelledby='settingsSidebar_pluginSection_header'
                         >
                             <div
                                 key={'plugin preferences heading'}
                                 role='heading'
                                 className={'header'}
                                 aria-level={3}
-                                id={pluginSectionHeadingId}
+                                id='settingsSidebar_pluginSection_header'
                             >
-                                {this.props.pluginSectionLabel || (
-                                    <FormattedMessage
-                                        id={'userSettingsModal.pluginPreferences.header'}
-                                        defaultMessage={'PLUGIN PREFERENCES'}
-                                    />
-                                )}
+                                <FormattedMessage
+                                    id={'userSettingsModal.pluginPreferences.header'}
+                                    defaultMessage={'PLUGIN PREFERENCES'}
+                                />
                             </div>
                             {visiblePluginTabs.map((tab) => this.renderTab(tab))}
                         </div>

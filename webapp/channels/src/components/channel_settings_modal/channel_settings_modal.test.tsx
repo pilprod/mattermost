@@ -3,10 +3,16 @@
 
 import React from 'react';
 
+import type {DeepPartial} from '@mattermost/types/utilities';
+
 import {General} from 'mattermost-redux/constants';
 
-import {renderWithContext, screen, waitFor, userEvent} from 'tests/react_testing_utils';
+import {act, renderWithContext, screen, waitFor, userEvent} from 'tests/react_testing_utils';
 import {TestHelper} from 'utils/test_helper';
+
+import type {ChannelSettingsTabProps} from 'types/plugins/channel_settings';
+import type {GlobalState} from 'types/store';
+import type {ChannelSettingsTabComponent} from 'types/store/plugins';
 
 import ChannelSettingsModal from './channel_settings_modal';
 
@@ -14,9 +20,12 @@ import ChannelSettingsModal from './channel_settings_modal';
 let mockPrivateChannelPermission = true;
 let mockPublicChannelPermission = true;
 let mockManageChannelAccessRulesPermission = false;
-const mockGetVisibleChannelSettingsTabs = jest.fn();
-const mockPluggable = jest.fn();
+let mockManageSharedChannelsPermission = false;
+const mockGetBasePath = jest.fn(() => '');
 const mockSettingsSidebar = jest.fn();
+const mockChannelSettingsPluginTab = jest.fn();
+const pluginSaveMocks = new Map<string, jest.Mock<Promise<void>, []>>();
+const pluginResetMocks = new Map<string, jest.Mock<void, []>>();
 
 // Mock the channel banner selector
 jest.mock('mattermost-redux/selectors/entities/channel_banner', () => ({
@@ -41,73 +50,23 @@ jest.mock('mattermost-redux/selectors/entities/roles', () => ({
         }
         return true;
     }),
+    haveISystemPermission: jest.fn().mockImplementation((state, {permission}) => {
+        if (permission === 'manage_shared_channels') {
+            return mockManageSharedChannelsPermission;
+        }
+        return false;
+    }),
 }));
 
 // Mock the general selectors
 jest.mock('selectors/general', () => ({
     isChannelAccessControlEnabled: jest.fn().mockReturnValue(true),
-    getBasePath: jest.fn().mockReturnValue(''),
-}));
-
-jest.mock('selectors/plugins', () => ({
-    getVisibleChannelSettingsTabs: (...args: unknown[]) => mockGetVisibleChannelSettingsTabs(...args),
+    getBasePath: () => mockGetBasePath(),
 }));
 
 jest.mock('utils/url', () => ({
     isValidUrl: jest.fn((url = '') => (/^https?:\/\//i).test(url)),
 }));
-
-jest.mock('plugins/pluggable', () => {
-    return function MockPluggable({
-        pluggableId,
-        pluggableName,
-        channel,
-        setAreThereUnsavedChanges,
-        registerSaveBarHandlers,
-    }: {
-        pluggableId: string;
-        pluggableName: string;
-        channel: {id: string};
-        setAreThereUnsavedChanges?: (value: boolean) => void;
-        registerSaveBarHandlers?: (handlers: { save: () => Promise<void>; reset: () => void } | null) => void;
-    }) {
-        const React = require('react');
-        React.useEffect(() => {
-            if (!registerSaveBarHandlers) {
-                return undefined;
-            }
-            registerSaveBarHandlers({
-                save: async () => {},
-                reset: () => {},
-            });
-            return () => registerSaveBarHandlers(null);
-        }, [registerSaveBarHandlers]);
-
-        mockPluggable({
-            pluggableId,
-            pluggableName,
-            channel,
-            setAreThereUnsavedChanges,
-            registerSaveBarHandlers,
-        });
-
-        return React.createElement('div', {
-            'data-testid': 'channel-settings-pluggable',
-            'data-pluggable-id': pluggableId,
-            'data-pluggable-name': pluggableName,
-            'data-channel-id': channel.id,
-            'data-has-set-unsaved-changes': String(Boolean(setAreThereUnsavedChanges)),
-            'data-has-register-save-bar-handlers': String(Boolean(registerSaveBarHandlers)),
-        }, [
-            'Plugin Tab Content',
-            setAreThereUnsavedChanges && React.createElement('button', {
-                key: 'set-unsaved',
-                'data-testid': 'pluggable-set-unsaved-changes',
-                onClick: () => setAreThereUnsavedChanges(true),
-            }, 'Set Plugin Unsaved Changes'),
-        ]);
-    };
-});
 
 // Mock child components to provide controlled testing interfaces
 jest.mock('./channel_settings_info_tab', () => {
@@ -177,23 +136,17 @@ jest.mock('components/settings_sidebar', () => {
     return function MockSettingsSidebar({
         tabs,
         pluginTabs = [],
-        pluginSectionLabel,
-        pluginSectionHeadingId,
         activeTab,
         updateTab,
     }: {
         tabs: TabType[];
         pluginTabs?: TabType[];
-        pluginSectionLabel?: string;
-        pluginSectionHeadingId?: string;
         activeTab: string;
         updateTab: (tab: string) => void;
     }): JSX.Element {
         mockSettingsSidebar({
             tabs,
             pluginTabs,
-            pluginSectionLabel,
-            pluginSectionHeadingId,
             activeTab,
             updateTab,
         });
@@ -224,7 +177,6 @@ jest.mock('components/settings_sidebar', () => {
 
 describe('ChannelSettingsModal', () => {
     const channelId = 'channel1';
-    const DummyChannelSettingsTab = () => null;
 
     const baseProps = {
         channelId,
@@ -233,8 +185,73 @@ describe('ChannelSettingsModal', () => {
         focusOriginElement: 'button1',
     };
 
-    function makeTestState() {
-        return {
+    function getPluginSaveMock(registrationId: string) {
+        let save = pluginSaveMocks.get(registrationId);
+        if (!save) {
+            save = jest.fn(async () => {});
+            pluginSaveMocks.set(registrationId, save);
+        }
+        return save;
+    }
+
+    function getPluginResetMock(registrationId: string) {
+        let reset = pluginResetMocks.get(registrationId);
+        if (!reset) {
+            reset = jest.fn();
+            pluginResetMocks.set(registrationId, reset);
+        }
+        return reset;
+    }
+
+    function createPluginComponent(registrationId: string, registerHandlers = true) {
+        return function TestChannelSettingsPluginTab({
+            channel,
+            setAreThereUnsavedChanges,
+            registerSaveBarHandlers,
+        }: ChannelSettingsTabProps) {
+            React.useEffect(() => {
+                if (!registerHandlers || !registerSaveBarHandlers) {
+                    return undefined;
+                }
+
+                registerSaveBarHandlers({
+                    save: getPluginSaveMock(registrationId),
+                    reset: getPluginResetMock(registrationId),
+                });
+                return () => registerSaveBarHandlers(null);
+            }, [registerSaveBarHandlers]);
+
+            mockChannelSettingsPluginTab({
+                registrationId,
+                channel,
+                setAreThereUnsavedChanges,
+                registerSaveBarHandlers,
+            });
+
+            return (
+                <div
+                    data-testid='channel-settings-pluggable'
+                    data-plugin-registration-id={registrationId}
+                    data-channel-id={channel.id}
+                    data-has-set-unsaved-changes={String(Boolean(setAreThereUnsavedChanges))}
+                    data-has-register-save-bar-handlers={String(Boolean(registerSaveBarHandlers))}
+                >
+                    {'Plugin Tab Content'}
+                    {setAreThereUnsavedChanges && (
+                        <button
+                            data-testid='pluggable-set-unsaved-changes'
+                            onClick={() => setAreThereUnsavedChanges(true)}
+                        >
+                            {'Set Plugin Unsaved Changes'}
+                        </button>
+                    )}
+                </div>
+            );
+        };
+    }
+
+    function makeTestState(pluginRegistrations: ChannelSettingsTabComponent[] = []): GlobalState {
+        const state: DeepPartial<GlobalState> = {
             entities: {
                 channels: {
                     channels: {
@@ -251,24 +268,28 @@ describe('ChannelSettingsModal', () => {
                     license: {
                         SkuShortName: '',
                     },
+                    config: {},
                 },
             },
             plugins: {
                 components: {
-                    ChannelSettingsTab: [],
+                    ChannelSettingsTab: pluginRegistrations,
                 },
             },
         };
+        return state as GlobalState;
     }
 
-    function makePluginTabRegistration(overrides: Record<string, unknown> = {}) {
+    function makePluginTabRegistration(overrides: Partial<ChannelSettingsTabComponent> = {}, registerHandlers = true): ChannelSettingsTabComponent {
+        const registrationId = overrides.id ?? 'plugin-tab-1';
+
         return {
-            id: 'plugin-tab-1',
+            id: registrationId,
             pluginId: 'plugin-id',
             uiName: 'Plugin Tab',
             icon: 'icon-plugin-tab',
             shouldRender: jest.fn(() => true),
-            component: DummyChannelSettingsTab,
+            component: createPluginComponent(registrationId, registerHandlers),
             ...overrides,
         };
     }
@@ -281,10 +302,12 @@ describe('ChannelSettingsModal', () => {
         mockPrivateChannelPermission = true;
         mockPublicChannelPermission = true;
         mockManageChannelAccessRulesPermission = false; // Default to no access rules permission
-        mockGetVisibleChannelSettingsTabs.mockReturnValue([]);
-        mockGetVisibleChannelSettingsTabs.mockClear();
-        mockPluggable.mockClear();
+        mockManageSharedChannelsPermission = false;
+        mockGetBasePath.mockReturnValue('');
+        mockChannelSettingsPluginTab.mockClear();
         mockSettingsSidebar.mockClear();
+        pluginSaveMocks.clear();
+        pluginResetMocks.clear();
         baseProps.onExited.mockClear();
     });
 
@@ -293,7 +316,11 @@ describe('ChannelSettingsModal', () => {
 
         renderWithContext(<ChannelSettingsModal {...baseProps}/>, testState);
 
-        expect(screen.getByText('Channel Settings')).toBeInTheDocument();
+        // Use wait for to ensure the component is completely loaded and avoid
+        // act related errors during test.
+        await waitFor(() => {
+            expect(screen.getByText('Channel Settings')).toBeInTheDocument();
+        });
     });
 
     it('should render Info tab by default', async () => {
@@ -444,6 +471,16 @@ describe('ChannelSettingsModal', () => {
         expect(screen.getByTestId('configuration-tab-button')).toBeInTheDocument();
     });
 
+    it('should show configuration tab when Connected Workspaces enabled and user has manage_shared_channels', async () => {
+        mockManageSharedChannelsPermission = true;
+
+        const testState = makeTestState();
+        testState.entities.general.config.ExperimentalSharedChannels = 'true';
+
+        renderWithContext(<ChannelSettingsModal {...baseProps}/>, testState);
+        expect(screen.getByTestId('configuration-tab-button')).toBeInTheDocument();
+    });
+
     describe('Access Control tab visibility', () => {
         it('should show Access Control tab for private channel when user has permission', async () => {
             mockManageChannelAccessRulesPermission = true;
@@ -458,9 +495,9 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should be visible
-            expect(screen.getByRole('tab', {name: /access control/i})).toBeInTheDocument();
-            expect(screen.getByText('Access Control')).toBeInTheDocument();
+            // The Membership Policy tab should be visible
+            expect(screen.getByRole('tab', {name: /membership policy/i})).toBeInTheDocument();
+            expect(screen.getByText('Membership Policy')).toBeInTheDocument();
         });
 
         it('should not show Access Control tab for private channel when user lacks permission', async () => {
@@ -476,12 +513,12 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should not be visible
-            expect(screen.queryByRole('tab', {name: /access control/i})).not.toBeInTheDocument();
-            expect(screen.queryByText('Access Control')).not.toBeInTheDocument();
+            // The Membership Policy tab should not be visible
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
         });
 
-        it('should not show Access Control tab for public channel even with permission', async () => {
+        it('should show Access Control tab for public channel when user has permission', async () => {
             mockManageChannelAccessRulesPermission = true;
 
             const testState = makeTestState();
@@ -493,9 +530,9 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should not be visible for public channels
-            expect(screen.queryByRole('tab', {name: /access control/i})).not.toBeInTheDocument();
-            expect(screen.queryByText('Access Control')).not.toBeInTheDocument();
+            // Public channels are eligible for ABAC policies (advisory / auto-add),
+            // so the Access Rules tab should be available when the user can manage them.
+            expect(screen.getByRole('tab', {name: /membership policy/i})).toBeInTheDocument();
         });
 
         it('should not show Access Control tab for public channel without permission', async () => {
@@ -510,9 +547,31 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should not be visible
-            expect(screen.queryByRole('tab', {name: /access control/i})).not.toBeInTheDocument();
-            expect(screen.queryByText('Access Control')).not.toBeInTheDocument();
+            // The Membership Policy tab should not be visible
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
+        });
+
+        it.each([
+            ['town-square', 'town-square'],
+            ['off-topic', 'off-topic'],
+        ])('should not show Access Control tab on %s default channel even with permission', async (_label, channelName) => {
+            // The server rejects ABAC policies on default channels via
+            // ValidateChannelEligibilityForAccessControl, so the tab would only
+            // let the user assemble rules they can never save.
+            mockManageChannelAccessRulesPermission = true;
+
+            const testState = makeTestState();
+            testState.entities.channels.channels[channelId].name = channelName;
+
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, testState);
+
+            await waitFor(() => {
+                expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
+            });
+
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
         });
 
         it('should be able to navigate to Access Control tab when visible', async () => {
@@ -531,8 +590,8 @@ describe('ChannelSettingsModal', () => {
             // Initially the info tab should be active
             expect(screen.getByTestId('info-tab')).toBeInTheDocument();
 
-            // Find and click the Access Control tab
-            const accessControlTab = screen.getByRole('tab', {name: /access control/i});
+            // Find and click the Membership Policy tab
+            const accessControlTab = screen.getByRole('tab', {name: /membership policy/i});
             await userEvent.click(accessControlTab);
 
             // Now the Access Control tab content should be visible
@@ -540,7 +599,7 @@ describe('ChannelSettingsModal', () => {
             expect(screen.getByText('Access Rules Tab Content')).toBeInTheDocument();
         });
 
-        it('should show correct tab label as "Access Control"', async () => {
+        it('should show correct tab label as "Membership Policy"', async () => {
             mockManageChannelAccessRulesPermission = true;
 
             const testState = makeTestState();
@@ -554,26 +613,25 @@ describe('ChannelSettingsModal', () => {
             });
 
             // Verify the tab shows the correct label
-            const accessControlTab = screen.getByRole('tab', {name: /access control/i});
-            expect(accessControlTab).toHaveTextContent('Access Control');
+            const accessControlTab = screen.getByRole('tab', {name: /membership policy/i});
+            expect(accessControlTab).toHaveTextContent('Membership Policy');
         });
 
-        it('should show Access Control tab for default channel if private and user has permission', async () => {
+        it('should not show Membership Policy tab for shared channels', async () => {
             mockManageChannelAccessRulesPermission = true;
 
             const testState = makeTestState();
-            testState.entities.channels.channels[channelId].name = 'town-square';
             testState.entities.channels.channels[channelId].type = General.PRIVATE_CHANNEL;
+            testState.entities.channels.channels[channelId].shared = true;
 
             renderWithContext(<ChannelSettingsModal {...baseProps}/>, testState);
 
-            // Wait for the sidebar to load
             await waitFor(() => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // Access Control tab visibility is not restricted for default channel - only depends on channel type and permission
-            expect(screen.getByRole('tab', {name: /access control/i})).toBeInTheDocument();
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
         });
 
         it('should not show Access Control tab for group-constrained private channel even with permission', async () => {
@@ -590,9 +648,9 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should not be visible for group-constrained channels
-            expect(screen.queryByRole('tab', {name: /access control/i})).not.toBeInTheDocument();
-            expect(screen.queryByText('Access Control')).not.toBeInTheDocument();
+            // The Membership Policy tab should not be visible for group-constrained channels
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
         });
 
         it('should not show Access Control tab for group-constrained private channel without permission', async () => {
@@ -609,9 +667,9 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should not be visible (for multiple reasons)
-            expect(screen.queryByRole('tab', {name: /access control/i})).not.toBeInTheDocument();
-            expect(screen.queryByText('Access Control')).not.toBeInTheDocument();
+            // The Membership Policy tab should not be visible (for multiple reasons)
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
         });
 
         it('should not show Access Control tab for group-constrained public channel', async () => {
@@ -627,19 +685,17 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
             });
 
-            // The Access Control tab should not be visible (for multiple reasons: public + group-constrained)
-            expect(screen.queryByRole('tab', {name: /access control/i})).not.toBeInTheDocument();
-            expect(screen.queryByText('Access Control')).not.toBeInTheDocument();
+            // The Membership Policy tab should not be visible (for multiple reasons: public + group-constrained)
+            expect(screen.queryByRole('tab', {name: /membership policy/i})).not.toBeInTheDocument();
+            expect(screen.queryByText('Membership Policy')).not.toBeInTheDocument();
         });
     });
 
     describe('plugin tab wiring', () => {
-        it('renders plugin tabs returned by the selector', async () => {
-            mockGetVisibleChannelSettingsTabs.mockReturnValue([
-                makePluginTabRegistration(),
-            ]);
+        it('renders registered plugin tabs', async () => {
+            const registration = makePluginTabRegistration();
 
-            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState());
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
 
             await waitFor(() => {
                 expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
@@ -648,20 +704,30 @@ describe('ChannelSettingsModal', () => {
             expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
         });
 
-        it('passes the channel-settings plugin section label and heading id to SettingsSidebar when plugin tabs are visible', async () => {
-            mockGetVisibleChannelSettingsTabs.mockReturnValue([
-                makePluginTabRegistration(),
-            ]);
+        it('does not render plugin tabs whose shouldRender returns false', async () => {
+            const registration = makePluginTabRegistration({shouldRender: jest.fn(() => false)});
 
-            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState());
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
+
+            await waitFor(() => {
+                expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
+            });
+
+            expect(screen.queryByRole('tab', {name: /plugin tab/i})).not.toBeInTheDocument();
+        });
+
+        it('prefixes root-relative plugin icon paths with the base path', async () => {
+            mockGetBasePath.mockReturnValue('/subpath');
+            const registration = makePluginTabRegistration({icon: '/plugins/test/public/icon.svg'});
+
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
 
             await waitFor(() => {
                 expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
             });
 
             const sidebarProps = getLatestSettingsSidebarProps();
-            expect(sidebarProps.pluginSectionLabel).toBe('PLUGIN SETTINGS');
-            expect(sidebarProps.pluginSectionHeadingId).toBe('channelSettingsModal_pluginSettings_header');
+            expect(sidebarProps.pluginTabs[0].icon).toEqual({url: '/subpath/plugins/test/public/icon.svg'});
         });
 
         it('does not mark Archive Channel as a new group break', async () => {
@@ -680,9 +746,8 @@ describe('ChannelSettingsModal', () => {
 
         it('renders plugin content through Pluggable when a plugin tab is clicked', async () => {
             const registration = makePluginTabRegistration();
-            mockGetVisibleChannelSettingsTabs.mockReturnValue([registration]);
 
-            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState());
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
 
             await waitFor(() => {
                 expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
@@ -694,17 +759,14 @@ describe('ChannelSettingsModal', () => {
                 expect(screen.getByTestId('channel-settings-pluggable')).toBeInTheDocument();
             });
 
-            expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-pluggable-name', 'ChannelSettingsTab');
-            expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-pluggable-id', registration.id);
+            expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-plugin-registration-id', registration.id);
             expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-channel-id', channelId);
         });
 
         it('passes unsaved-change props through to the selected plugin tab', async () => {
-            mockGetVisibleChannelSettingsTabs.mockReturnValue([
-                makePluginTabRegistration(),
-            ]);
+            const registration = makePluginTabRegistration();
 
-            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState());
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
 
             await waitFor(() => {
                 expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
@@ -732,12 +794,160 @@ describe('ChannelSettingsModal', () => {
             });
         });
 
-        it('does not switch to a plugin tab while unsaved changes are present', async () => {
-            mockGetVisibleChannelSettingsTabs.mockReturnValue([
-                makePluginTabRegistration(),
-            ]);
+        it('clears plugin save handlers before switching between plugin tabs', async () => {
+            const firstRegistration = makePluginTabRegistration({id: 'plugin-tab-1', uiName: 'Plugin Tab 1'});
+            const secondRegistration = makePluginTabRegistration({id: 'plugin-tab-2', uiName: 'Plugin Tab 2'}, false);
 
-            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState());
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([firstRegistration, secondRegistration]));
+
+            await waitFor(() => {
+                expect(screen.getByRole('tab', {name: /plugin tab 1/i})).toBeInTheDocument();
+            });
+
+            await userEvent.click(screen.getByRole('tab', {name: /plugin tab 1/i}));
+            await waitFor(() => {
+                expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-plugin-registration-id', 'plugin-tab-1');
+            });
+
+            await userEvent.click(screen.getByRole('tab', {name: /plugin tab 2/i}));
+            await waitFor(() => {
+                expect(screen.getByTestId('channel-settings-pluggable')).toHaveAttribute('data-plugin-registration-id', 'plugin-tab-2');
+            });
+
+            await userEvent.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+            await waitFor(() => {
+                expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeInTheDocument();
+            });
+
+            await userEvent.click(screen.getByTestId('SaveChangesPanel__save-btn'));
+
+            expect(getPluginSaveMock('plugin-tab-1')).not.toHaveBeenCalled();
+        });
+
+        it('resets the close warning latch when plugin changes are reset', async () => {
+            const registration = makePluginTabRegistration();
+
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
+
+            await waitFor(() => {
+                expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
+            });
+
+            await userEvent.click(screen.getByRole('tab', {name: /plugin tab/i}));
+            await userEvent.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+
+            const closeButton = screen.getByLabelText(/close/i);
+            await userEvent.click(closeButton);
+            await waitFor(() => {
+                expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeDisabled();
+            });
+
+            await userEvent.click(screen.getByTestId('SaveChangesPanel__cancel-btn'));
+            expect(getPluginResetMock(registration.id)).toHaveBeenCalled();
+
+            await userEvent.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+            await userEvent.click(closeButton);
+
+            await waitFor(() => {
+                expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeDisabled();
+            });
+            expect(baseProps.onExited).not.toHaveBeenCalled();
+        });
+
+        it('clears dirty state and resets the close warning latch after successful plugin save', async () => {
+            jest.useFakeTimers();
+            const user = userEvent.setup({advanceTimers: jest.advanceTimersByTime});
+            const registration = makePluginTabRegistration();
+
+            try {
+                renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
+
+                await waitFor(() => {
+                    expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
+                });
+
+                await user.click(screen.getByRole('tab', {name: /plugin tab/i}));
+                await user.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+
+                const closeButton = screen.getByLabelText(/close/i);
+                await user.click(closeButton);
+                await waitFor(() => {
+                    expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeDisabled();
+                });
+
+                act(() => {
+                    jest.advanceTimersByTime(3000);
+                });
+
+                await user.click(screen.getByTestId('SaveChangesPanel__save-btn'));
+
+                await waitFor(() => {
+                    expect(screen.queryByTestId('SaveChangesPanel__save-btn')).not.toBeInTheDocument();
+                });
+                expect(getPluginSaveMock(registration.id)).toHaveBeenCalled();
+
+                await user.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+                await user.click(closeButton);
+
+                await waitFor(() => {
+                    expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeDisabled();
+                });
+                expect(baseProps.onExited).not.toHaveBeenCalled();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('leaves dirty state and close warning latch unchanged when plugin save fails', async () => {
+            jest.useFakeTimers();
+            const user = userEvent.setup({advanceTimers: jest.advanceTimersByTime});
+            const registration = makePluginTabRegistration();
+            getPluginSaveMock(registration.id).mockRejectedValueOnce(new Error('save failed'));
+
+            try {
+                renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
+
+                await waitFor(() => {
+                    expect(screen.getByRole('tab', {name: /plugin tab/i})).toBeInTheDocument();
+                });
+
+                await user.click(screen.getByRole('tab', {name: /plugin tab/i}));
+                await user.click(screen.getByTestId('pluggable-set-unsaved-changes'));
+
+                const closeButton = screen.getByLabelText(/close/i);
+                await user.click(closeButton);
+                await waitFor(() => {
+                    expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeDisabled();
+                });
+
+                act(() => {
+                    jest.advanceTimersByTime(3000);
+                });
+
+                await user.click(screen.getByTestId('SaveChangesPanel__save-btn'));
+
+                await waitFor(() => {
+                    expect(getPluginSaveMock(registration.id)).toHaveBeenCalled();
+                });
+                expect(screen.getByTestId('SaveChangesPanel__save-btn')).toBeInTheDocument();
+
+                await user.click(closeButton);
+                act(() => {
+                    jest.runOnlyPendingTimers();
+                });
+
+                await waitFor(() => {
+                    expect(baseProps.onExited).toHaveBeenCalled();
+                });
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('does not switch to a plugin tab while unsaved changes are present', async () => {
+            const registration = makePluginTabRegistration();
+
+            renderWithContext(<ChannelSettingsModal {...baseProps}/>, makeTestState([registration]));
 
             await waitFor(() => {
                 expect(screen.getByTestId('info-tab')).toBeInTheDocument();

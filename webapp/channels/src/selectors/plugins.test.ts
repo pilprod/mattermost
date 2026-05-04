@@ -6,16 +6,9 @@ import type {DeepPartial} from '@mattermost/types/utilities';
 import type {GlobalState} from 'types/store';
 import type {ChannelSettingsTabComponent} from 'types/store/plugins';
 
-import {getVisibleChannelSettingsTabs} from './plugins';
+import {getChannelSettingsTabs} from './plugins';
 
 describe('Selectors.Plugins', () => {
-    const channelId = 'channel1';
-    const channel = {
-        id: channelId,
-        team_id: 'team1',
-        name: 'test-channel',
-        type: 'O' as const,
-    };
     const DummyChannelSettingsTab = () => null;
 
     function makeChannelSettingsTab(overrides: Partial<ChannelSettingsTabComponent> = {}): ChannelSettingsTabComponent {
@@ -31,13 +24,6 @@ describe('Selectors.Plugins', () => {
 
     function makeState(channelSettingsTabs: ChannelSettingsTabComponent[] = []): GlobalState {
         const state: DeepPartial<GlobalState> = {
-            entities: {
-                channels: {
-                    channels: {
-                        [channelId]: channel,
-                    },
-                },
-            },
             plugins: {
                 components: {
                     ChannelSettingsTab: channelSettingsTabs,
@@ -48,54 +34,27 @@ describe('Selectors.Plugins', () => {
         return state as GlobalState;
     }
 
-    it('returns an empty array when the channel does not exist', () => {
-        const shouldRender = jest.fn(() => true);
-        const registration = makeChannelSettingsTab({shouldRender});
-        const state = makeState([registration]);
-
-        expect(getVisibleChannelSettingsTabs(state, 'missing-channel')).toEqual([]);
-        expect(shouldRender).not.toHaveBeenCalled();
-    });
-
-    it('returns visible channel settings tabs when shouldRender is true', () => {
+    it('returns channel settings tab registrations', () => {
         const registration = makeChannelSettingsTab({
             shouldRender: jest.fn(() => true),
         });
         const state = makeState([registration]);
 
-        expect(getVisibleChannelSettingsTabs(state, channelId)).toEqual([registration]);
+        expect(getChannelSettingsTabs(state)).toEqual([registration]);
     });
 
-    it('filters out channel settings tabs when shouldRender is false', () => {
+    it('does not call shouldRender while returning channel settings tab registrations', () => {
+        const shouldRender = jest.fn(() => false);
         const registration = makeChannelSettingsTab({
-            shouldRender: jest.fn(() => false),
+            shouldRender,
         });
         const state = makeState([registration]);
 
-        expect(getVisibleChannelSettingsTabs(state, channelId)).toEqual([]);
+        expect(getChannelSettingsTabs(state)).toEqual([registration]);
+        expect(shouldRender).not.toHaveBeenCalled();
     });
 
-    it('treats channel settings tabs without shouldRender as visible', () => {
-        const registration = {
-            ...makeChannelSettingsTab(),
-            shouldRender: undefined,
-        } as unknown as ChannelSettingsTabComponent;
-        const state = makeState([registration]);
-
-        expect(getVisibleChannelSettingsTabs(state, channelId)).toEqual([registration]);
-    });
-
-    it('passes the resolved channel object into shouldRender', () => {
-        const shouldRender = jest.fn(() => true);
-        const registration = makeChannelSettingsTab({shouldRender});
-        const state = makeState([registration]);
-
-        getVisibleChannelSettingsTabs(state, channelId);
-
-        expect(shouldRender).toHaveBeenCalledWith(state, state.entities.channels.channels[channelId]);
-    });
-
-    it('preserves registration order when filtering multiple tabs', () => {
+    it('preserves registration order', () => {
         const firstRegistration = makeChannelSettingsTab({
             id: 'tab-1',
             uiName: 'First Plugin Tab',
@@ -115,6 +74,6 @@ describe('Selectors.Plugins', () => {
         });
         const state = makeState([firstRegistration, secondRegistration, thirdRegistration]);
 
-        expect(getVisibleChannelSettingsTabs(state, channelId)).toEqual([secondRegistration, thirdRegistration]);
+        expect(getChannelSettingsTabs(state)).toEqual([firstRegistration, secondRegistration, thirdRegistration]);
     });
 });

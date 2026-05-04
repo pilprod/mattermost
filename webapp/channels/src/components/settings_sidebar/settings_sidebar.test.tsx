@@ -7,7 +7,7 @@ import React from 'react';
 
 import {renderWithContext} from 'tests/react_testing_utils';
 
-import SettingsSidebar from './settings_sidebar';
+import SettingsSidebar, {normalizePluginIcon} from './settings_sidebar';
 
 type Props = ComponentProps<typeof SettingsSidebar>;
 
@@ -27,6 +27,12 @@ const makeTab = (overrides: Partial<Props['tabs'][number]> = {}) => ({
 });
 
 describe('properly use the correct icon', () => {
+    it('normalizes root-relative plugin icon paths with a base path', () => {
+        expect(normalizePluginIcon('/plugins/test/public/icon.svg', '/subpath')).toEqual({
+            url: '/subpath/plugins/test/public/icon.svg',
+        });
+    });
+
     it('icon as a string', () => {
         const iconTitle = 'Icon title';
         const icon = 'icon';
@@ -78,34 +84,6 @@ describe('plugin section heading', () => {
 
         expect(screen.getByRole('heading', {name: 'PLUGIN PREFERENCES'})).toBeInTheDocument();
     });
-
-    it('renders a custom plugin section heading when pluginSectionLabel is provided', () => {
-        const props: Props = {
-            ...baseProps,
-            pluginTabs: [makeTab()],
-            pluginSectionLabel: 'PLUGIN SETTINGS',
-        };
-        renderWithContext(<SettingsSidebar {...props}/>);
-
-        expect(screen.getByRole('heading', {name: 'PLUGIN SETTINGS'})).toBeInTheDocument();
-        expect(screen.queryByRole('heading', {name: 'PLUGIN PREFERENCES'})).not.toBeInTheDocument();
-    });
-
-    it('uses the provided pluginSectionHeadingId for the plugin group labelling', () => {
-        const props: Props = {
-            ...baseProps,
-            pluginTabs: [makeTab()],
-            pluginSectionLabel: 'Custom Plugin Settings',
-            pluginSectionHeadingId: 'custom_plugin_section_heading',
-        };
-        renderWithContext(<SettingsSidebar {...props}/>);
-
-        const heading = screen.getByRole('heading', {name: 'Custom Plugin Settings'});
-        const group = screen.getByRole('group', {name: 'Custom Plugin Settings'});
-
-        expect(heading).toHaveAttribute('id', 'custom_plugin_section_heading');
-        expect(group).toHaveAttribute('aria-labelledby', 'custom_plugin_section_heading');
-    });
 });
 
 describe('tabs are properly rendered', () => {
@@ -136,7 +114,6 @@ describe('tabs are properly rendered', () => {
             pluginTabs: [
                 makeTab({name: 'plugin-1', uiName: 'Plugin Tab'}),
             ],
-            pluginSectionLabel: 'Custom Plugin Settings',
         };
 
         renderWithContext(<SettingsSidebar {...props}/>);
@@ -148,7 +125,7 @@ describe('tabs are properly rendered', () => {
         ]);
 
         const builtInTab = screen.getByRole('tab', {name: /built in two/i});
-        const heading = screen.getByRole('heading', {name: 'Custom Plugin Settings'});
+        const heading = screen.getByRole('heading', {name: 'PLUGIN PREFERENCES'});
         const pluginTab = screen.getByRole('tab', {name: /plugin tab/i});
 
         expect(Boolean(builtInTab.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);

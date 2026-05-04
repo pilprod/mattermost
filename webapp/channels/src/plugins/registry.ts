@@ -37,6 +37,7 @@ import {generateId} from 'utils/utils';
 import type {ChannelSettingsTab} from 'types/plugins/channel_settings';
 import type {
     PluginsState,
+    ChannelSettingsTabComponent,
     ProductComponent,
     NeedsTeamComponent,
     PostDropdownMenuAction,
@@ -68,6 +69,7 @@ import type {
     DesktopNotificationHook,
     PluggableText,
     SidebarBrowseOrAddChannelMenuAction,
+    AIActionMenuItemComponent,
 } from 'types/store/plugins';
 
 const defaultShouldRender = () => true;
@@ -524,8 +526,8 @@ export default class PluginRegistry {
      * Register a tab for the channel settings modal.
      * The component renders in the modal content pane when its tab is selected.
      * Visible tabs are intended to participate in channel-settings availability in later phases.
-     * The component will receive `channel`, `setAreThereUnsavedChanges`, and `registerSaveBarHandlers`
-     * for the host-managed SaveChangesPanel (unsaved changes and blocked tab-switch feedback).
+     * The component will receive the current `channel`, `setAreThereUnsavedChanges`, and
+     * `registerSaveBarHandlers` for the host-managed SaveChangesPanel.
      */
     registerChannelSettingsTab = reArg([
         'uiName',
@@ -540,14 +542,16 @@ export default class PluginRegistry {
     }: ChannelSettingsTab) => {
         const id = generateId();
 
-        dispatchPluginComponentWithData('ChannelSettingsTab', {
+        const registration: ChannelSettingsTabComponent = {
             id,
             pluginId: this.id,
             uiName,
-            component: component as PluginsState['components']['ChannelSettingsTab'][number]['component'],
+            component,
             icon,
             shouldRender: shouldRender ?? defaultShouldRender,
-        });
+        };
+
+        dispatchPluginComponentWithData('ChannelSettingsTab', registration);
 
         return id;
     });
@@ -630,6 +634,36 @@ export default class PluginRegistry {
     registerPostEditorActionComponent = reArg(['component'], ({component}: DPluginComponentProp) => {
         return dispatchPluginComponentAction('PostEditorAction', this.id, component);
     });
+
+    /**
+     * Register an item in the AI actions menu in the text editor toolbar.
+     * Accepts the following:
+     * - icon - React element to use as the menu item's icon
+     * - text - A string or React element to display in the menu item
+     * - sortOrder - Numeric sort order for positioning in the menu
+     * - component - React component rendered as a submenu on hover (mutually exclusive with action)
+     * - action - Callback invoked on click (mutually exclusive with component)
+     * Provide either component or action, not both.
+     * Returns a unique identifier.
+     */
+    registerAIActionMenuItemComponent = reArg(
+        ['icon', 'text', 'sortOrder', 'component', 'action'],
+        ({icon, text, sortOrder, component, action}: {icon: React.ReactNode; text: PluggableText; sortOrder: number; component?: AIActionMenuItemComponent['component']; action?: AIActionMenuItemComponent['action']}) => {
+            const id = generateId();
+
+            dispatchPluginComponentWithData('AIActionMenuItem', {
+                id,
+                pluginId: this.id,
+                icon,
+                text: resolveReactElement(text),
+                sortOrder,
+                component,
+                action,
+            });
+
+            return id;
+        },
+    );
 
     /**
      * Register a component to the add to the code block header.

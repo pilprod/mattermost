@@ -13,7 +13,7 @@ import type {UserProfile} from '@mattermost/types/users';
 import type {ActionResult} from 'mattermost-redux/types/actions';
 
 import ConfirmModal from 'components/confirm_modal';
-import SettingsSidebar from 'components/settings_sidebar';
+import SettingsSidebar, {normalizePluginIcon} from 'components/settings_sidebar';
 import UserSettings from 'components/user_settings';
 import LoadingSpinner from 'components/widgets/loading/loading_spinner';
 import SmartLoader from 'components/widgets/smart_loader';
@@ -22,7 +22,6 @@ import {focusElement} from 'utils/a11y_utils';
 import Constants from 'utils/constants';
 import {cmdOrCtrlPressed, isKeyPressed} from 'utils/keyboard';
 import {stopTryNotificationRing} from 'utils/notification_sounds';
-import {isValidUrl} from 'utils/url';
 import {getDisplayName} from 'utils/utils';
 
 import type {PluginConfiguration} from 'types/plugins/user_settings';
@@ -39,6 +38,7 @@ export type OwnProps = {
 
 export type Props = OwnProps & {
     intl: IntlShape;
+    basePath: string;
     pluginSettings: {[pluginId: string]: PluginConfiguration};
     user?: UserProfile;
     onExited: () => void;
@@ -307,12 +307,10 @@ class UserSettingsModal extends React.PureComponent<Props, State> {
 
     getPluginsSettingsTab = () => {
         return Object.values(this.props.pluginSettings).map((v) => {
-            const useURL = v.icon && (isValidUrl(v.icon) || v.icon.startsWith('/'));
-            const className = v.icon ? `icon ${v.icon}` : 'icon icon-power-plug-outline';
             return {
                 name: v.id,
                 uiName: v.uiName,
-                icon: useURL ? {url: v.icon!} : className,
+                icon: normalizePluginIcon(v.icon, this.props.basePath),
                 iconTitle: v.uiName,
             };
         });
@@ -320,10 +318,6 @@ class UserSettingsModal extends React.PureComponent<Props, State> {
 
     render() {
         const {formatMessage} = this.props.intl;
-        const pluginSectionLabel = formatMessage({
-            id: 'userSettingsModal.pluginPreferences.header',
-            defaultMessage: 'PLUGIN PREFERENCES',
-        });
 
         let modalTitle: string;
         if (this.props.adminMode && this.props.user) {
@@ -396,8 +390,6 @@ class UserSettingsModal extends React.PureComponent<Props, State> {
                                     <SettingsSidebar
                                         tabs={this.props.isContentProductSettings ? this.getUserSettingsTabs() : this.getProfileSettingsTab()}
                                         pluginTabs={this.props.isContentProductSettings ? this.getPluginsSettingsTab() : []}
-                                        pluginSectionLabel={this.props.isContentProductSettings ? pluginSectionLabel : undefined}
-                                        pluginSectionHeadingId={this.props.isContentProductSettings ? 'userSettingsModal_pluginPreferences_header' : undefined}
                                         activeTab={this.state.active_tab}
                                         updateTab={this.updateTab}
                                     />
