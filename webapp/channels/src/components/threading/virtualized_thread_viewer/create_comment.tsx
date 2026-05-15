@@ -11,6 +11,7 @@ import {makeGetChannel} from 'mattermost-redux/selectors/entities/channels';
 import {getPost, getLimitedViews} from 'mattermost-redux/selectors/entities/posts';
 
 import AdvancedCreateComment from 'components/advanced_create_comment';
+import {ChannelDecoratorAboveComposer} from 'components/channel_view/channel_decorator_above_composer';
 import BasicSeparator from 'components/widgets/separator/basic-separator';
 
 import {useChannelIconOverrideName} from 'hooks/useChannelIconOverrideName';
@@ -108,6 +109,7 @@ const CreateComment = forwardRef<HTMLDivElement, Props>(({
             ref={ref}
             data-testid='comment-create'
         >
+            <ChannelDecoratorAboveComposer channelId={channel.id}/>
             <AdvancedCreateComment
                 placeholder={placeholder}
                 channelId={channel.id}
