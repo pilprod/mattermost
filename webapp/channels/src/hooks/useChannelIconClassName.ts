@@ -9,6 +9,6 @@ import {getChannelIconClassNameForChannel} from 'selectors/channel_icon_override
 
 import type {GlobalState} from 'types/store';
 
-export function useChannelIconClassName(channel?: Channel): string {
+export function useChannelIconClassName(channel?: Channel | null): string {
     return useSelector((state: GlobalState) => getChannelIconClassNameForChannel(state, channel));
 }
