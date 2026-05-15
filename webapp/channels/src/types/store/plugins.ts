@@ -2,6 +2,7 @@
 // See LICENSE.txt for license information.
 
 import type React from 'react';
+import type {IntlShape} from 'react-intl';
 import type {RouteComponentProps} from 'react-router-dom';
 
 import type {WebSocketClient} from '@mattermost/client';
@@ -73,6 +74,7 @@ export type PluginsState = {
         ChannelTypeOption: ChannelTypeOptionComponent[];
         ChannelIconOverride: ChannelIconOverrideRegistration[];
         ChannelDecorator: ChannelDecoratorRegistration[];
+        ComposerPlaceholderSuffix: ComposerPlaceholderSuffixRegistration[];
         FilesWillUploadHook: FilesWillUploadHook[];
         DesktopNotificationHooks: DesktopNotificationHook[];
         MessageWillFormat: MessageWillFormatHook[];
@@ -433,6 +435,11 @@ export type ChannelDecoratorRegistration = PluginComponent & {
     slot: ChannelDecoratorSlot;
     matcher: (channel: Channel, state: GlobalState) => boolean;
     component: React.ComponentType<{channel: Channel}>;
+};
+
+export type ComposerPlaceholderSuffixRegistration = PluginComponent & {
+    matcher: (channel: Channel, state: GlobalState) => boolean;
+    text: string | ((channel: Channel, state: GlobalState, intl: IntlShape) => string);
 };
 
 export type ChannelTypeOptionComponent = PluginComponent & {

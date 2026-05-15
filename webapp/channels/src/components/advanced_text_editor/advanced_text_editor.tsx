@@ -47,6 +47,7 @@ import type TextboxClass from 'components/textbox/textbox';
 import {OnboardingTourSteps, OnboardingTourStepsForGuestUsers, TutorialTourName} from 'components/tours/constant';
 import {SendMessageTour} from 'components/tours/onboarding_tour';
 
+import {useComposerPlaceholderSuffix} from 'hooks/useComposerPlaceholderSuffix';
 import Constants, {
     Locations,
     StoragePrefixes,
@@ -182,6 +183,7 @@ const AdvancedTextEditor = ({
     const showDndWarning = useSelector((state: GlobalState) => (teammateId ? getStatusForUserId(state, teammateId) === UserStatuses.DND : false));
     const selectedPostFocussedAt = useSelector((state: GlobalState) => getSelectedPostFocussedAt(state));
     const {available: aiRewriteEnabled} = useGetAgentsBridgeEnabled();
+    const composerPlaceholderSuffix = useComposerPlaceholderSuffix(channelId);
 
     const canPost = useSelector((state: GlobalState) => {
         const channel = getChannel(state, channelId);
@@ -656,6 +658,10 @@ const AdvancedTextEditor = ({
         );
     } else {
         createMessage = formatMessage({id: 'create_comment.addComment', defaultMessage: 'Reply to this thread...'});
+    }
+
+    if (composerPlaceholderSuffix) {
+        createMessage = `${createMessage}${composerPlaceholderSuffix}`;
     }
 
     const messageValue = isDisabled && !rewriteIsProcessing ? '' : draft.message_source || draft.message;
