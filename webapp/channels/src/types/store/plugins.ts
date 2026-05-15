@@ -76,6 +76,7 @@ export type PluginsState = {
         ChannelDecorator: ChannelDecoratorRegistration[];
         PostDecorator: PostDecoratorRegistration[];
         ComposerPlaceholderSuffix: ComposerPlaceholderSuffixRegistration[];
+        ProductSwitcherMenuItem: ProductSwitcherMenuItemRegistration[];
         FilesWillUploadHook: FilesWillUploadHook[];
         DesktopNotificationHooks: DesktopNotificationHook[];
         MessageWillFormat: MessageWillFormatHook[];
@@ -449,6 +450,13 @@ export type PostDecoratorRegistration = PluginComponent & {
 export type ComposerPlaceholderSuffixRegistration = PluginComponent & {
     matcher: (channel: Channel, state: GlobalState) => boolean;
     text: string | ((channel: Channel, state: GlobalState, intl: IntlShape) => string);
+};
+
+export type ProductSwitcherMenuItemRegistration = PluginComponent & {
+    text: string;
+    icon: IconGlyphTypes | React.ReactNode;
+    action: () => void;
+    isAvailable?: (state: GlobalState) => boolean;
 };
 
 export type ChannelTypeOptionComponent = PluginComponent & {

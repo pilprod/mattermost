@@ -227,6 +227,7 @@ const initialComponents: PluginsState['components'] = {
     ChannelDecorator: [],
     PostDecorator: [],
     ComposerPlaceholderSuffix: [],
+    ProductSwitcherMenuItem: [],
     MessageWillBePosted: [],
     MessageWillBeUpdated: [],
     SlashCommandWillBePosted: [],
