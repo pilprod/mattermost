@@ -74,6 +74,7 @@ export type PluginsState = {
         ChannelTypeOption: ChannelTypeOptionComponent[];
         ChannelIconOverride: ChannelIconOverrideRegistration[];
         ChannelDecorator: ChannelDecoratorRegistration[];
+        PostDecorator: PostDecoratorRegistration[];
         ComposerPlaceholderSuffix: ComposerPlaceholderSuffixRegistration[];
         FilesWillUploadHook: FilesWillUploadHook[];
         DesktopNotificationHooks: DesktopNotificationHook[];
@@ -435,6 +436,14 @@ export type ChannelDecoratorRegistration = PluginComponent & {
     slot: ChannelDecoratorSlot;
     matcher: (channel: Channel, state: GlobalState) => boolean;
     component: React.ComponentType<{channel: Channel}>;
+};
+
+export type PostDecoratorSlot = 'post_header_badge';
+
+export type PostDecoratorRegistration = PluginComponent & {
+    slot: PostDecoratorSlot;
+    matcher: (post: Post, state: GlobalState) => boolean;
+    component: React.ComponentType<{post: Post}>;
 };
 
 export type ComposerPlaceholderSuffixRegistration = PluginComponent & {

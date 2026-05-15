@@ -225,6 +225,7 @@ const initialComponents: PluginsState['components'] = {
     ChannelTypeOption: [],
     ChannelIconOverride: [],
     ChannelDecorator: [],
+    PostDecorator: [],
     ComposerPlaceholderSuffix: [],
     MessageWillBePosted: [],
     MessageWillBeUpdated: [],
