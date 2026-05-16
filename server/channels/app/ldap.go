@@ -54,8 +54,16 @@ func (a *App) TestLdapConnection(rctx request.CTX, settings model.LdapSettings) 
 		return ldapI.RunTestConnection(rctx, settings)
 	}
 
-	return model.NewAppError("TestLdapConnection",
-		"ent.ldap.disabled.app_error", nil, "", http.StatusNotImplemented)
+	// Патч: UI не передаёт пароль обратно (password-поле пустое в форме).
+	// Если BindPassword пустой в пришедших settings — берём из сохранённого конфига
+	// (который включает значения из env vars, например MM_LDAPSETTINGS_BINDPASSWORD).
+	if strDeref(settings.BindPassword) == "" {
+		settings.BindPassword = a.Config().LdapSettings.BindPassword
+	}
+
+	// Team Edition fallback: test using the settings passed from the UI
+	// (may differ from the saved config — admin can test before saving).
+	return doBuiltinLdapTest(settings)
 }
 
 func (a *App) TestLdapDiagnostics(rctx request.CTX, testType model.LdapDiagnosticTestType, settings model.LdapSettings) ([]model.LdapDiagnosticResult, *model.AppError) {
