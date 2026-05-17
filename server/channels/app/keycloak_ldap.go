@@ -277,6 +277,72 @@ func (k *KeycloakLdap) GetGroup(rctx request.CTX, groupUID string) (*model.Group
 	return kcGroupToModel(g), nil
 }
 
+// ─── Group member sync ───────────────────────────────────────────────────────
+
+// fetchGroupMembers returns all members (emails) of a Keycloak group by UUID.
+func (k *KeycloakLdap) fetchGroupMembers(token, groupUID string) ([]kcUser, error) {
+	base, err := k.adminBase()
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodGet, base+"/groups/"+groupUID+"/members?max=1000", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("keycloak members request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("keycloak members request failed: %s", resp.Status)
+	}
+	var users []kcUser
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+// SyncGroupMembers fetches Keycloak group members and upserts them into the
+// Mattermost GroupMembers table, matching by email.
+func (k *KeycloakLdap) SyncGroupMembers(rctx request.CTX, mmGroupID, kcGroupUID string) {
+	token, err := k.getAdminToken()
+	if err != nil {
+		rctx.Logger().Warn("KeycloakLdap.SyncGroupMembers: failed to get admin token", mlog.Err(err))
+		return
+	}
+	members, err := k.fetchGroupMembers(token, kcGroupUID)
+	if err != nil {
+		rctx.Logger().Warn("KeycloakLdap.SyncGroupMembers: failed to fetch members", mlog.Err(err))
+		return
+	}
+	for _, m := range members {
+		if m.Email == "" {
+			continue
+		}
+		user, appErr := k.app.GetUserByEmail(m.Email)
+		if appErr != nil {
+			continue
+		}
+		if _, appErr = k.app.UpsertGroupMember(mmGroupID, user.Id); appErr != nil {
+			rctx.Logger().Warn("KeycloakLdap.SyncGroupMembers: failed to upsert member",
+				mlog.String("user_id", user.Id), mlog.Err(appErr))
+		}
+	}
+	rctx.Logger().Info("KeycloakLdap.SyncGroupMembers: sync complete",
+		mlog.String("group_id", mmGroupID), mlog.Int("members_found", len(members)))
+
+	// Propagate group membership to all synced teams and channels immediately.
+	if err := k.app.CreateDefaultMemberships(rctx, model.CreateDefaultMembershipParams{
+		Since:               0,
+		ReAddRemovedMembers: true,
+	}); err != nil {
+		rctx.Logger().Warn("KeycloakLdap.SyncGroupMembers: failed to propagate to teams/channels", mlog.Err(err))
+	}
+}
+
 // ─── LdapInterface: user auth stubs (handled by OIDC, not LDAP) ─────────────
 
 func kcNotSupported(method string) *model.AppError {
