@@ -10,6 +10,7 @@ import (
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/shared/mlog"
+	"github.com/mattermost/mattermost/server/public/shared/request"
 )
 
 // keycloakProvider is a marker interface implemented by KeycloakLdap.
@@ -62,11 +63,6 @@ func (api *API) InitLdap() {
 }
 
 func syncLdap(c *Context, w http.ResponseWriter, r *http.Request) {
-	if c.App.Channels().License() == nil || !*c.App.Channels().License().Features.LDAP {
-		c.Err = model.NewAppError("api4.syncLdap", "api.ldap_groups.license_error", nil, "", http.StatusNotImplemented)
-		return
-	}
-
 	if !c.App.SessionHasPermissionTo(*c.AppContext.Session(), model.PermissionCreateLdapSyncJob) {
 		c.SetPermissionError(model.PermissionCreateLdapSyncJob)
 		return
@@ -82,11 +78,6 @@ func syncLdap(c *Context, w http.ResponseWriter, r *http.Request) {
 }
 
 func testLdap(c *Context, w http.ResponseWriter, r *http.Request) {
-	if c.App.Channels().License() == nil || !*c.App.Channels().License().Features.LDAP {
-		c.Err = model.NewAppError("api4.testLdap", "api.ldap_groups.license_error", nil, "", http.StatusNotImplemented)
-		return
-	}
-
 	if !c.App.SessionHasPermissionTo(*c.AppContext.Session(), model.PermissionTestLdap) {
 		c.SetPermissionError(model.PermissionTestLdap)
 		return
@@ -101,11 +92,6 @@ func testLdap(c *Context, w http.ResponseWriter, r *http.Request) {
 }
 
 func testLdapConnection(c *Context, w http.ResponseWriter, r *http.Request) {
-	if c.App.Channels().License() == nil || !model.SafeDereference(c.App.Channels().License().Features.LDAP) {
-		c.Err = model.NewAppError("api4.testLdapConnection", "api.ldap_groups.license_error", nil, "", http.StatusNotImplemented)
-		return
-	}
-
 	if !c.App.SessionHasPermissionTo(*c.AppContext.Session(), model.PermissionTestLdap) {
 		c.SetPermissionError(model.PermissionTestLdap)
 		return
@@ -126,11 +112,6 @@ func testLdapConnection(c *Context, w http.ResponseWriter, r *http.Request) {
 }
 
 func testLdapDiagnostics(c *Context, w http.ResponseWriter, r *http.Request) {
-	if c.App.Channels().License() == nil || !*c.App.Channels().License().Features.LDAP {
-		c.Err = model.NewAppError("Api4.testLdapDiagnostics", "api.ldap_groups.license_error", nil, "", http.StatusNotImplemented)
-		return
-	}
-
 	if !c.App.SessionHasPermissionTo(*c.AppContext.Session(), model.PermissionTestLdap) {
 		c.SetPermissionError(model.PermissionTestLdap)
 		return
@@ -315,6 +296,14 @@ func linkLdapGroup(c *Context, w http.ResponseWriter, r *http.Request) {
 
 	auditRec.Success()
 
+	// Kick off Keycloak group member sync in background so the Group
+	// Configuration page shows users immediately after linking.
+	if kp, ok := c.App.Ldap().(interface {
+		SyncGroupMembers(request.CTX, string, string)
+	}); ok {
+		go kp.SyncGroupMembers(c.AppContext, newOrUpdatedGroup.Id, c.Params.RemoteId)
+	}
+
 	w.WriteHeader(status)
 	if _, err := w.Write(b); err != nil {
 		c.Logger.Warn("Error while writing response", mlog.Err(err))
@@ -376,11 +365,6 @@ func migrateIDLdap(c *Context, w http.ResponseWriter, r *http.Request) {
 
 	if !c.App.SessionHasPermissionTo(*c.AppContext.Session(), model.PermissionManageSystem) {
 		c.SetPermissionError(model.PermissionManageSystem)
-		return
-	}
-
-	if c.App.Channels().License() == nil || !*c.App.Channels().License().Features.LDAP {
-		c.Err = model.NewAppError("api4.idMigrateLdap", "api.ldap_groups.license_error", nil, "", http.StatusNotImplemented)
 		return
 	}
 
