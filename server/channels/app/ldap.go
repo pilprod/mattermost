@@ -23,13 +23,14 @@ func (a *App) SyncLdap(rctx request.CTX) {
 				return
 			}
 
-		ldapI := a.Ldap()
-		if ldapI == nil {
-			rctx.Logger().Error("Not executing ldap sync because ldap is not available")
-			return
-		}
-		if _, appErr := ldapI.StartSynchronizeJob(rctx, false); appErr != nil {
-			rctx.Logger().Error("Failed to start LDAP sync job")
+			ldapI := a.Ldap()
+			if ldapI == nil {
+				rctx.Logger().Error("Not executing ldap sync because ldap is not available")
+				return
+			}
+			if _, appErr := ldapI.StartSynchronizeJob(rctx, false); appErr != nil {
+				rctx.Logger().Error("Failed to start LDAP sync job")
+			}
 		}
 	})
 }
@@ -54,16 +55,8 @@ func (a *App) TestLdapConnection(rctx request.CTX, settings model.LdapSettings) 
 		return ldapI.RunTestConnection(rctx, settings)
 	}
 
-	// Патч: UI не передаёт пароль обратно (password-поле пустое в форме).
-	// Если BindPassword пустой в пришедших settings — берём из сохранённого конфига
-	// (который включает значения из env vars, например MM_LDAPSETTINGS_BINDPASSWORD).
-	if strDeref(settings.BindPassword) == "" {
-		settings.BindPassword = a.Config().LdapSettings.BindPassword
-	}
-
-	// Team Edition fallback: test using the settings passed from the UI
-	// (may differ from the saved config — admin can test before saving).
-	return doBuiltinLdapTest(settings)
+	return model.NewAppError("TestLdapConnection",
+		"ent.ldap.disabled.app_error", nil, "", http.StatusNotImplemented)
 }
 
 func (a *App) TestLdapDiagnostics(rctx request.CTX, testType model.LdapDiagnosticTestType, settings model.LdapSettings) ([]model.LdapDiagnosticResult, *model.AppError) {
@@ -76,9 +69,7 @@ func (a *App) TestLdapDiagnostics(rctx request.CTX, testType model.LdapDiagnosti
 		return ldapI.RunTestDiagnostics(rctx, testType, settings)
 	}
 
-	// Патч: расширенная диагностика доступна только в enterprise-плагине.
-	// В builtin-режиме возвращаем пустой результат без ошибки.
-	return []model.LdapDiagnosticResult{}, nil
+	return nil, model.NewAppError("TestLdapDiagnostics", "ent.ldap.disabled.app_error", nil, "", http.StatusNotImplemented)
 }
 
 // GetLdapGroup retrieves a single LDAP group by the given LDAP group id.
