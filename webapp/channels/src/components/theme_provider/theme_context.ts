@@ -6,9 +6,17 @@ import {useLocation} from 'react-router-dom';
 
 import {TEAM_NAME_PATH_PATTERN} from 'utils/path';
 
-export const ThemeContext = React.createContext({
+import {Preferences} from 'mattermost-redux/constants';
+import type {Theme} from 'mattermost-redux/selectors/entities/preferences';
+
+export const ThemeContext = React.createContext<{
+    startUsingUserTheme: () => void;
+    stopUsingUserTheme: () => void;
+    effectiveTheme: Theme;
+}>({
     startUsingUserTheme: () => {},
     stopUsingUserTheme: () => {},
+    effectiveTheme: Preferences.THEMES.quartz,
 });
 
 // Exclude System Console's integrations pages from team backstage routes.
