@@ -173,7 +173,8 @@ export default function ThemeProvider({children}: {children: React.ReactNode}) {
     const context = useMemo(() => ({
         startUsingUserTheme: () => setUsingUserTheme((count) => count + 1),
         stopUsingUserTheme: () => setUsingUserTheme((count) => count - 1),
-    }), []);
+        effectiveTheme,
+    }), [effectiveTheme]);
 
     return (
         <ThemeContext.Provider value={context}>
