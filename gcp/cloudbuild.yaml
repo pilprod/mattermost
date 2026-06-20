@@ -14,20 +14,122 @@ steps:
     id: 'build'
     env:
       - 'DOCKER_BUILDKIT=1'
+      - 'PIPELINE_NAME=Mattermost image build'
+      - 'PIPELINE_PROJECT_ID=$PROJECT_ID'
+      - 'PIPELINE_BUILD_ID=$BUILD_ID'
+      - 'PIPELINE_GITHUB_REPO=https://github.com/pilprod/mattermost'
+      - 'PIPELINE_TAG=$TAG_NAME'
+      - 'PIPELINE_SHORT_SHA=$SHORT_SHA'
+    secretEnv:
+      - 'MATTERMOST_CICD_WEBHOOK_URL'
     entrypoint: 'bash'
     args:
-      - '-c'
+      - '-ceu'
       - |
-        image_tag="$TAG_NAME"
+        set +x
+
+        if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+          apt-get update
+          apt-get install -y ca-certificates curl python3
+        fi
+
+        pipeline_started_at="$$(date -u +%s)"
+        pipeline_tag="$${PIPELINE_TAG:-manual-or-untagged}"
+        pipeline_github_repo="$${PIPELINE_GITHUB_REPO:-}"
+        pipeline_project="$${pipeline_github_repo#https://github.com/}"
+        pipeline_short_sha="$${PIPELINE_SHORT_SHA:-unknown-sha}"
+        pipeline_build_id="$${PIPELINE_BUILD_ID:-unknown-build}"
+        pipeline_project_id="$${PIPELINE_PROJECT_ID:-gcloud-production-1}"
+        pipeline_name="$${PIPELINE_NAME:-Cloud Build}"
+        if [[ -z "$${pipeline_project}" || "$${pipeline_project}" == "$${pipeline_github_repo}" ]]; then
+          pipeline_project="$${pipeline_name}"
+        fi
+        pipeline_build_url="https://console.cloud.google.com/cloud-build/builds;region=$${LOCATION:-global}/$${pipeline_build_id}?project=$${pipeline_project_id}"
+        pipeline_log="/tmp/mattermost-cicd-$${pipeline_build_id}.log"
+
+        notify_mattermost() {
+          local state="$$1"
+          local exit_code="$${2:-}"
+          local duration_seconds="$${3:-}"
+          local icon="🔔"
+          local state_label="$${state}"
+          case "$${state}" in
+            started)
+              icon="🚀"
+              state_label="started"
+              ;;
+            succeeded)
+              icon="✅"
+              state_label="succeeded"
+              ;;
+            failed)
+              icon="❌"
+              state_label="failed"
+              ;;
+          esac
+          local tag_text="\`$${pipeline_tag}\`"
+          if [[ -n "$${pipeline_github_repo}" && "$${pipeline_tag}" != "manual-or-untagged" ]]; then
+            tag_text="[$${pipeline_tag}]($${pipeline_github_repo}/tree/$${pipeline_tag})"
+          fi
+          local commit_text="\`$${pipeline_short_sha}\`"
+          if [[ -n "$${pipeline_github_repo}" && "$${pipeline_short_sha}" != "unknown-sha" ]]; then
+            commit_text="[$${pipeline_short_sha}]($${pipeline_github_repo}/commit/$${pipeline_short_sha})"
+          fi
+          local project_text="$${pipeline_project}"
+          if [[ -n "$${pipeline_github_repo}" ]]; then
+            project_text="[$${pipeline_project}]($${pipeline_github_repo})"
+          fi
+          local text
+          printf -v text '%s Build %s: **%s**\n\nProject: %s\nTag: %s\nCommit: %s\nBuild: [%s](%s)' \
+            "$${icon}" \
+            "$${state_label}" \
+            "$${pipeline_name}" \
+            "$${project_text}" \
+            "$${tag_text}" \
+            "$${commit_text}" \
+            "$${pipeline_build_id}" \
+            "$${pipeline_build_url}"
+
+          if [[ -n "$${exit_code}" ]]; then
+            printf -v text '%s\nDuration: `%ss`' "$${text}" "$${duration_seconds}"
+            if [[ -s "$${pipeline_log}" ]]; then
+              local report
+              report="$$(tail -n 40 "$${pipeline_log}")"
+              printf -v text '%s\n\n```diff\n%s\n```' "$${text}" "$${report}"
+            fi
+          fi
+
+          python3 -c 'import json,sys; print(json.dumps({"text": sys.stdin.read()}))' <<<"$${text}" >/tmp/mattermost-cicd-payload.json
+          curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @/tmp/mattermost-cicd-payload.json "$$MATTERMOST_CICD_WEBHOOK_URL" >/dev/null || true
+        }
+
+        notify_done() {
+          local exit_code="$$?"
+          local duration_seconds="$$(( $$(date -u +%s) - pipeline_started_at ))"
+
+          if [[ "$${exit_code}" -eq 0 ]]; then
+            notify_mattermost "succeeded" "$${exit_code}" "$${duration_seconds}"
+          else
+            notify_mattermost "failed" "$${exit_code}" "$${duration_seconds}"
+          fi
+
+          exit "$${exit_code}"
+        }
+
+        trap notify_done EXIT
+        notify_mattermost "started"
+        exec > >(tee -a "$${pipeline_log}") 2>&1
+
+        image_tag="$${pipeline_tag}"
         tag_pattern='^v*.*-patched$'
 
-        if [[ -z "$$image_tag" ]]; then
-          echo "TAG_NAME is empty; Mattermost image build must run from a tag matching $$tag_pattern" >&2
+        if [[ -z "$${image_tag}" || "$${image_tag}" == "manual-or-untagged" ]]; then
+          echo "TAG_NAME is empty; Mattermost image build must run from a tag matching $${tag_pattern}" >&2
           exit 1
         fi
 
-        if [[ ! "$$image_tag" =~ $$tag_pattern ]]; then
-          echo "TAG_NAME '$$image_tag' does not match required pattern $$tag_pattern" >&2
+        if [[ ! "$${image_tag}" =~ $${tag_pattern} ]]; then
+          echo "TAG_NAME '$${image_tag}' does not match required pattern $${tag_pattern}" >&2
           exit 1
         fi
 
@@ -36,7 +138,7 @@ steps:
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref=$_IMAGE_REPO:buildcache \
           --cache-to=type=registry,ref=$_IMAGE_REPO:buildcache,mode=max \
-          --tag=$_IMAGE_REPO:$$image_tag \
+          --tag=$_IMAGE_REPO:$${image_tag} \
           --tag=$_IMAGE_REPO:latest \
           --push \
           .
@@ -50,3 +152,9 @@ options:
 
 substitutions:
   _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
+  _MATTERMOST_CICD_WEBHOOK_SECRET_VERSION: 'projects/gcloud-production-1/secrets/mattermost-cicd-webhook-url/versions/latest'
+
+availableSecrets:
+  secretManager:
+    - versionName: '${_MATTERMOST_CICD_WEBHOOK_SECRET_VERSION}'
+      env: 'MATTERMOST_CICD_WEBHOOK_URL'
