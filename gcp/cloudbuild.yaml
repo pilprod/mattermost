@@ -110,7 +110,11 @@ steps:
 
           if [[ -n "$${exit_code}" ]]; then
             if [[ -n "$${pipeline_registry_image_digest}" ]]; then
-              local registry_label="$${IMAGE_REPO}@$${pipeline_registry_image_digest}"
+              local registry_label_tag="$${pipeline_image_tag}"
+              if [[ -n "$${pipeline_secondary_image_tag}" ]]; then
+                registry_label_tag="$${pipeline_secondary_image_tag}"
+              fi
+              local registry_label="$${registry_image_name}:$${registry_label_tag}"
               local registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}/$${pipeline_registry_image_digest}?project=$${registry_project_id}"
               local registry_text="[$${registry_label}]($${registry_url})"
               printf -v text '%s\nImage: %s' "$${text}" "$${registry_text}"
