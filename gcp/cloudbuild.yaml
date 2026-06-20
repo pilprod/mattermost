@@ -19,6 +19,7 @@ steps:
       - 'PIPELINE_BUILD_ID=$BUILD_ID'
       - 'PIPELINE_GITHUB_REPO=https://github.com/pilprod/mattermost'
       - 'PIPELINE_TAG=$TAG_NAME'
+      - 'PIPELINE_BRANCH=$BRANCH_NAME'
       - 'PIPELINE_SHORT_SHA=$SHORT_SHA'
     secretEnv:
       - 'MATTERMOST_CICD_WEBHOOK_URL'
@@ -35,6 +36,7 @@ steps:
 
         pipeline_started_at="$$(date -u +%s)"
         pipeline_tag="$${PIPELINE_TAG:-manual-or-untagged}"
+        pipeline_branch="$${PIPELINE_BRANCH:-}"
         pipeline_github_repo="$${PIPELINE_GITHUB_REPO:-}"
         pipeline_project="$${pipeline_github_repo#https://github.com/}"
         pipeline_short_sha="$${PIPELINE_SHORT_SHA:-unknown-sha}"
@@ -67,9 +69,15 @@ steps:
               state_label="failed"
               ;;
           esac
-          local tag_text="\`$${pipeline_tag}\`"
-          if [[ -n "$${pipeline_github_repo}" && "$${pipeline_tag}" != "manual-or-untagged" ]]; then
-            tag_text="[$${pipeline_tag}]($${pipeline_github_repo}/tree/$${pipeline_tag})"
+          local ref_label="Tag"
+          local ref_value="$${pipeline_tag}"
+          if [[ "$${pipeline_tag}" == "manual-or-untagged" && -n "$${pipeline_branch}" ]]; then
+            ref_label="Branch"
+            ref_value="$${pipeline_branch}"
+          fi
+          local ref_text="\`$${ref_value}\`"
+          if [[ -n "$${pipeline_github_repo}" && "$${ref_value}" != "manual-or-untagged" ]]; then
+            ref_text="[$${ref_value}]($${pipeline_github_repo}/tree/$${ref_value})"
           fi
           local commit_text="\`$${pipeline_short_sha}\`"
           if [[ -n "$${pipeline_github_repo}" && "$${pipeline_short_sha}" != "unknown-sha" ]]; then
@@ -80,12 +88,13 @@ steps:
             project_text="[$${pipeline_project}]($${pipeline_github_repo})"
           fi
           local text
-          printf -v text '%s Build %s: **%s**\n\nProject: %s\nTag: %s\nCommit: %s\nBuild: [%s](%s)' \
+          printf -v text '%s Build %s: **%s**\n\nProject: %s\n%s: %s\nCommit: %s\nBuild: [%s](%s)' \
             "$${icon}" \
             "$${state_label}" \
             "$${pipeline_name}" \
             "$${project_text}" \
-            "$${tag_text}" \
+            "$${ref_label}" \
+            "$${ref_text}" \
             "$${commit_text}" \
             "$${pipeline_build_id}" \
             "$${pipeline_build_url}"
@@ -122,14 +131,24 @@ steps:
 
         image_tag="$${pipeline_tag}"
         tag_pattern='^v*.*-patched$'
+        branch_pattern='${_PATCHED_BRANCH_PATTERN}'
 
-        if [[ -z "$${image_tag}" || "$${image_tag}" == "manual-or-untagged" ]]; then
-          echo "TAG_NAME is empty; Mattermost image build must run from a tag matching $${tag_pattern}" >&2
-          exit 1
-        fi
-
-        if [[ ! "$${image_tag}" =~ $${tag_pattern} ]]; then
-          echo "TAG_NAME '$${image_tag}' does not match required pattern $${tag_pattern}" >&2
+        docker_tags=()
+        if [[ -n "$${image_tag}" && "$${image_tag}" != "manual-or-untagged" ]]; then
+          if [[ ! "$${image_tag}" =~ $${tag_pattern} ]]; then
+            echo "TAG_NAME '$${image_tag}' does not match required pattern $${tag_pattern}" >&2
+            exit 1
+          fi
+          docker_tags+=(--tag="$_IMAGE_REPO:$${image_tag}" --tag="$_IMAGE_REPO:latest")
+        elif [[ -n "$${pipeline_branch}" ]]; then
+          if [[ ! "$${pipeline_branch}" =~ $${branch_pattern} ]]; then
+            echo "BRANCH_NAME '$${pipeline_branch}' does not match required pattern $${branch_pattern}" >&2
+            exit 1
+          fi
+          image_tag="$$(printf '%s' "$${pipeline_branch}" | sed 's|[^A-Za-z0-9_.-]|-|g')"
+          docker_tags+=(--tag="$_IMAGE_REPO:$${image_tag}" --tag="$_IMAGE_REPO:${_DEV_IMAGE_TAG}")
+        else
+          echo "Neither TAG_NAME nor BRANCH_NAME is set; Mattermost image build must run from a patched tag or branch." >&2
           exit 1
         fi
 
@@ -138,8 +157,7 @@ steps:
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref=$_IMAGE_REPO:buildcache \
           --cache-to=type=registry,ref=$_IMAGE_REPO:buildcache,mode=max \
-          --tag=$_IMAGE_REPO:$${image_tag} \
-          --tag=$_IMAGE_REPO:latest \
+          "$${docker_tags[@]}" \
           --push \
           .
     timeout: '3600s'
@@ -152,6 +170,8 @@ options:
 
 substitutions:
   _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
+  _DEV_IMAGE_TAG: 'dev'
+  _PATCHED_BRANCH_PATTERN: '^.*-patched$'
   _MATTERMOST_CICD_WEBHOOK_SECRET_VERSION: 'projects/gcloud-production-1/secrets/mattermost-cicd-webhook-url/versions/latest'
 
 availableSecrets:
