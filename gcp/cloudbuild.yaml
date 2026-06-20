@@ -1,6 +1,6 @@
 # Cloud Build — Mattermost Team Edition (patched)
 #
-# Триггер: push tag формата ^v*.*-pached$
+# Триггер: push tag формата ^v*.*-patched$
 # Cloud Build работает нативно на linux/amd64 — QEMU не нужен.
 # npm run build занимает ~8-12 мин (vs 35+ мин под QEMU на macOS).
 #
@@ -19,7 +19,7 @@ steps:
       - '-c'
       - |
         image_tag="$TAG_NAME"
-        tag_pattern='^v*.*-pached$'
+        tag_pattern='^v*.*-patched$'
 
         if [[ -z "$$image_tag" ]]; then
           echo "TAG_NAME is empty; Mattermost image build must run from a tag matching $$tag_pattern" >&2

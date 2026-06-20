@@ -5,7 +5,7 @@ I just add OIDC Auth for LDAP/Keycloak support and will do fix some UI
 ## Docs
 If you need to install Docker Image:
 ```sh
-docker image inspect asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-pached-11.7
+docker image inspect asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-patched-11.7
 ```
 
 ## How to build the binary locally
@@ -66,7 +66,7 @@ If you changed code and want to test it locally, build the full Docker image fro
 ```sh
 docker build \
 	-f Dockerfile.team-patch \
-	-t asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-pached-11.7 \
+	-t asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-patched-11.7 \
 	.
 ```
 
@@ -77,10 +77,10 @@ cd /Users/pilprod/Projects/chatops/mvp
 docker compose up -d --force-recreate --no-deps mattermost-patched
 ```
 
-After push to `public-pached-11.7`, Cloud Build publishes this image:
+After push to `public-patched-11.7`, Cloud Build publishes this image:
 
 ```sh
-asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-pached-11.7
+asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-patched-11.7
 ```
 
 On the server, pull it and recreate only the patched Mattermost container:
