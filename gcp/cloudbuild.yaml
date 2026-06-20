@@ -63,7 +63,9 @@ steps:
         registry_image_name="$${registry_path_remainder#*/}"
         pipeline_registry_label="$${IMAGE_REPO}"
         pipeline_registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}?project=$${registry_project_id}"
+        pipeline_registry_image_digest=""
         pipeline_log="/tmp/mattermost-cicd-$${pipeline_build_id}.log"
+        pipeline_metadata_file="/tmp/mattermost-image-$${pipeline_build_id}.json"
 
         notify_mattermost() {
           local state="$$1"
@@ -97,9 +99,8 @@ steps:
           if [[ -n "$${pipeline_github_repo}" ]]; then
             project_text="[$${pipeline_project}]($${pipeline_github_repo})"
           fi
-          local registry_text="[$${pipeline_registry_label}]($${pipeline_registry_url})"
           local text
-          printf -v text '%s Build %s: **%s**\n\nProject: %s\nTag: %s\nCommit: %s\nBuild: [%s](%s)\nRegistry: %s' \
+          printf -v text '%s Build %s: **%s**\n\nProject: %s\nTag: %s\nCommit: %s\nBuild: [%s](%s)' \
             "$${icon}" \
             "$${state_label}" \
             "$${pipeline_name}" \
@@ -107,10 +108,15 @@ steps:
             "$${tag_text}" \
             "$${commit_text}" \
             "$${pipeline_build_id}" \
-            "$${pipeline_build_url}" \
-            "$${registry_text}"
+            "$${pipeline_build_url}"
 
           if [[ -n "$${exit_code}" ]]; then
+            if [[ -n "$${pipeline_registry_image_digest}" ]]; then
+              local registry_label="$${IMAGE_REPO}@$${pipeline_registry_image_digest}"
+              local registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}/$${pipeline_registry_image_digest}?project=$${registry_project_id}"
+              local registry_text="[$${registry_label}]($${registry_url})"
+              printf -v text '%s\nRegistry: %s' "$${text}" "$${registry_text}"
+            fi
             printf -v text '%s\nDuration: `%ss`  ' "$${text}" "$${duration_seconds}"
             if [[ -s "$${pipeline_log}" ]]; then
               local report
@@ -153,9 +159,14 @@ steps:
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref="$${IMAGE_REPO}:buildcache" \
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
+          --metadata-file="$${pipeline_metadata_file}" \
           "$${tag_args[@]}" \
           --push \
           .
+
+        if [[ -s "$${pipeline_metadata_file}" ]]; then
+          pipeline_registry_image_digest="$$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("containerimage.digest", ""))' "$${pipeline_metadata_file}" 2>/dev/null || true)"
+        fi
     timeout: '3600s'
 
 timeout: '3600s'
