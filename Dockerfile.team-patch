@@ -22,7 +22,9 @@ RUN npm run build
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — server binary (Go)
 # ─────────────────────────────────────────────────────────────────────────────
-FROM golang:1.26-alpine AS server-builder
+# Pinned to 1.26.4: ships the patched stdlib for CVE-2026-42504 (mime),
+# CVE-2026-27145 (crypto/x509) and CVE-2026-42507 (net/textproto).
+FROM golang:1.26.4-alpine AS server-builder
 
 WORKDIR /src/server
 COPY server/ .
