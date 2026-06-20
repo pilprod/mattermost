@@ -61,8 +61,6 @@ steps:
         registry_path_remainder="$${registry_path#*/}"
         registry_repo_name="$${registry_path_remainder%%/*}"
         registry_image_name="$${registry_path_remainder#*/}"
-        pipeline_registry_label="$${IMAGE_REPO}"
-        pipeline_registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}?project=$${registry_project_id}"
         pipeline_registry_image_digest=""
         pipeline_log="/tmp/mattermost-cicd-$${pipeline_build_id}.log"
         pipeline_metadata_file="/tmp/mattermost-image-$${pipeline_build_id}.json"
