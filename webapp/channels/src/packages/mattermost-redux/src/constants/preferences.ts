@@ -30,6 +30,7 @@ const Preferences = {
     INTERVAL_NEVER: 0,
     INTERVAL_NOT_SET: -1,
     CATEGORY_DISPLAY_SETTINGS: 'display_settings',
+    NAME_THEME_SYNC_WITH_OS: 'sync_with_os_theme',
     NAME_NAME_FORMAT: 'name_format',
     DISPLAY_PREFER_NICKNAME: 'nickname_full_name',
     DISPLAY_PREFER_FULL_NAME: 'full_name',

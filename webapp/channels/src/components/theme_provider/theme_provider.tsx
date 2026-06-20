@@ -29,9 +29,10 @@ function osIsDarkNow(): boolean {
 
 function localSync(): boolean {
     try {
-        return localStorage.getItem(LS_SYNC_KEY) === 'true';
+        const v = localStorage.getItem(LS_SYNC_KEY);
+        return v === null ? true : v === 'true';
     } catch {
-        return false;
+        return true;
     }
 }
 

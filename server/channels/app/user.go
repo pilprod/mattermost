@@ -387,8 +387,9 @@ func (a *App) createUserOrGuest(rctx request.CTX, user *model.User, guest bool) 
 	recommendedNextStepsPref := model.Preference{UserId: ruser.Id, Category: model.PreferenceCategoryRecommendedNextSteps, Name: model.PreferenceNameRecommendedNextStepsHide, Value: "false"}
 	tutorialStepPref := model.Preference{UserId: ruser.Id, Category: model.PreferenceCategoryTutorialSteps, Name: ruser.Id, Value: "0"}
 	gmASdmPref := model.Preference{UserId: ruser.Id, Category: model.PreferenceCategorySystemNotice, Name: "GMasDM", Value: "true"}
+	syncWithOSPref := model.Preference{UserId: ruser.Id, Category: model.PreferenceCategoryDisplaySettings, Name: model.PreferenceNameThemeSyncWithOS, Value: "true"}
 
-	preferences := model.Preferences{recommendedNextStepsPref, tutorialStepPref, gmASdmPref}
+	preferences := model.Preferences{recommendedNextStepsPref, tutorialStepPref, gmASdmPref, syncWithOSPref}
 	if err := a.Srv().Store().Preference().Save(preferences); err != nil {
 		rctx.Logger().Warn("Encountered error saving user preferences", mlog.Err(err))
 	}
