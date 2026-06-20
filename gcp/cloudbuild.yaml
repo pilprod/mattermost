@@ -1,11 +1,11 @@
 # Cloud Build — Mattermost Team Edition (patched)
 #
-# Триггер: push в ветки patched-*
+# Триггеры: теги v*-patched для latest и v*patched-dev для dev.
 # Cloud Build работает нативно на linux/amd64 — QEMU не нужен.
 # npm run build занимает ~8-12 мин (vs 35+ мин под QEMU на macOS).
 #
 # Кеширование: BuildKit registry cache сохраняется в _IMAGE_REPO:buildcache.
-# При повторной сборке без изменений webapp/server переиспользуются
+# При повторной сборке без изменений webapp/server переиспользуются
 # промежуточные слои и cache mounts из Dockerfile.
 
 steps:
@@ -23,6 +23,7 @@ steps:
       - 'PIPELINE_BRANCH=$BRANCH_NAME'
       - 'PIPELINE_SHORT_SHA=$SHORT_SHA'
       - 'IMAGE_REPO=${_IMAGE_REPO}'
+      - 'DEV_IMAGE_TAG=${_DEV_IMAGE_TAG}'
     secretEnv:
       - 'MATTERMOST_CICD_WEBHOOK_URL'
     entrypoint: 'bash'
@@ -35,7 +36,15 @@ steps:
         pipeline_started_at="$$(date -u +%s)"
         pipeline_tag="$${PIPELINE_TAG:-manual-or-untagged}"
         pipeline_branch="$${PIPELINE_BRANCH:-}"
+        pipeline_dev_image_tag="$${DEV_IMAGE_TAG:-dev}"
         pipeline_image_tag="$${pipeline_branch:-$${PIPELINE_TAG:-manual}}"
+        pipeline_secondary_image_tag=""
+        pipeline_push_latest="true"
+        if [[ "$${pipeline_tag}" == *-dev ]]; then
+          pipeline_image_tag="$${pipeline_dev_image_tag}"
+          pipeline_secondary_image_tag="$${PIPELINE_TAG:-}"
+          pipeline_push_latest="false"
+        fi
         pipeline_github_repo="$${PIPELINE_GITHUB_REPO:-}"
         pipeline_project="$${pipeline_github_repo#https://github.com/}"
         pipeline_short_sha="$${PIPELINE_SHORT_SHA:-unknown-sha}"
@@ -47,7 +56,15 @@ steps:
           pipeline_project="$${pipeline_name}"
         fi
         pipeline_build_url="https://console.cloud.google.com/cloud-build/builds;region=$${pipeline_cloudbuild_region}/$${pipeline_build_id}?project=$${pipeline_project_id}"
-        pipeline_registry="$${IMAGE_REPO}:$${pipeline_image_tag}; $${IMAGE_REPO}:latest; cache: $${IMAGE_REPO}:buildcache"
+        registry_host="$${IMAGE_REPO%%/*}"
+        registry_path="$${IMAGE_REPO#*/}"
+        registry_location="$${registry_host%-docker.pkg.dev}"
+        registry_project_id="$${registry_path%%/*}"
+        registry_path_remainder="$${registry_path#*/}"
+        registry_repo_name="$${registry_path_remainder%%/*}"
+        registry_image_name="$${registry_path_remainder#*/}"
+        pipeline_registry_label="$${registry_project_id}/$${registry_repo_name}/$${registry_image_name}"
+        pipeline_registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}?project=$${registry_project_id}"
         pipeline_log="/tmp/mattermost-cicd-$${pipeline_build_id}.log"
 
         notify_mattermost() {
@@ -82,7 +99,7 @@ steps:
           if [[ -n "$${pipeline_github_repo}" ]]; then
             project_text="[$${pipeline_project}]($${pipeline_github_repo})"
           fi
-          local registry_text="\`$${pipeline_registry}\`"
+          local registry_text="[$${pipeline_registry_label}]($${pipeline_registry_url})"
           local text
           printf -v text '%s Build %s: **%s**\n\nProject: %s\nTag: %s\nCommit: %s\nBuild: [%s](%s)\nRegistry: %s' \
             "$${icon}" \
@@ -125,13 +142,20 @@ steps:
         notify_mattermost "started"
         exec > >(tee -a "$${pipeline_log}") 2>&1
 
+        tag_args=(--tag "$${IMAGE_REPO}:$${pipeline_image_tag}")
+        if [[ -n "$${pipeline_secondary_image_tag}" && "$${pipeline_secondary_image_tag}" != "$${pipeline_image_tag}" ]]; then
+          tag_args+=(--tag "$${IMAGE_REPO}:$${pipeline_secondary_image_tag}")
+        fi
+        if [[ "$${pipeline_push_latest}" == "true" ]]; then
+          tag_args+=(--tag "$${IMAGE_REPO}:latest")
+        fi
+
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
         docker buildx build \
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref="$${IMAGE_REPO}:buildcache" \
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
-          --tag="$${IMAGE_REPO}:$${pipeline_image_tag}" \
-          --tag="$${IMAGE_REPO}:latest" \
+          "$${tag_args[@]}" \
           --push \
           .
     timeout: '3600s'
@@ -146,6 +170,7 @@ substitutions:
   _PIPELINE_NAME: 'mattermost image'
   _CLOUDBUILD_REGION: 'southamerica-east1'
   _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
+  _DEV_IMAGE_TAG: 'dev'
   _MATTERMOST_CICD_WEBHOOK_SECRET_VERSION: 'projects/gcloud-production-1/secrets/mattermost-cicd-webhook-url/versions/latest'
 
 availableSecrets:
