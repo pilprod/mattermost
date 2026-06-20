@@ -17,6 +17,7 @@ steps:
       - 'PIPELINE_NAME=mattermost build patched image'
       - 'PIPELINE_PROJECT_ID=$PROJECT_ID'
       - 'PIPELINE_BUILD_ID=$BUILD_ID'
+      - 'PIPELINE_CLOUDBUILD_REGION=${_CLOUDBUILD_REGION}'
       - 'PIPELINE_GITHUB_REPO=https://github.com/pilprod/mattermost'
       - 'PIPELINE_TAG=$TAG_NAME'
       - 'PIPELINE_BRANCH=$BRANCH_NAME'
@@ -42,11 +43,13 @@ steps:
         pipeline_short_sha="$${PIPELINE_SHORT_SHA:-unknown-sha}"
         pipeline_build_id="$${PIPELINE_BUILD_ID:-unknown-build}"
         pipeline_project_id="$${PIPELINE_PROJECT_ID:-gcloud-production-1}"
+        pipeline_cloudbuild_region="$${PIPELINE_CLOUDBUILD_REGION:-southamerica-east1}"
         pipeline_name="$${PIPELINE_NAME:-Cloud Build}"
         if [[ -z "$${pipeline_project}" || "$${pipeline_project}" == "$${pipeline_github_repo}" ]]; then
           pipeline_project="$${pipeline_name}"
         fi
-        pipeline_build_url="https://console.cloud.google.com/cloud-build/builds;region=$${LOCATION:-global}/$${pipeline_build_id}?project=$${pipeline_project_id}"
+        pipeline_build_url="https://console.cloud.google.com/cloud-build/builds;region=$${pipeline_cloudbuild_region}/$${pipeline_build_id}?project=$${pipeline_project_id}"
+        pipeline_registry="${_IMAGE_REPO}"
         pipeline_log="/tmp/mattermost-cicd-$${pipeline_build_id}.log"
 
         notify_mattermost() {
@@ -87,8 +90,9 @@ steps:
           if [[ -n "$${pipeline_github_repo}" ]]; then
             project_text="[$${pipeline_project}]($${pipeline_github_repo})"
           fi
+          local registry_text="\`$${pipeline_registry}\`"
           local text
-          printf -v text '%s Build %s: **%s**\n\nProject: %s\n%s: %s\nCommit: %s\nBuild: [%s](%s)' \
+          printf -v text '%s Build %s: **%s**\n\nProject: %s\n%s: %s\nCommit: %s\nBuild: [%s](%s)\nRegistry: %s' \
             "$${icon}" \
             "$${state_label}" \
             "$${pipeline_name}" \
@@ -97,7 +101,8 @@ steps:
             "$${ref_text}" \
             "$${commit_text}" \
             "$${pipeline_build_id}" \
-            "$${pipeline_build_url}"
+            "$${pipeline_build_url}" \
+            "$${registry_text}"
 
           if [[ -n "$${exit_code}" ]]; then
             printf -v text '%s\nDuration: `%ss`  ' "$${text}" "$${duration_seconds}"
@@ -146,10 +151,20 @@ steps:
             exit 1
           fi
           image_tag="$$(printf '%s' "$${pipeline_branch}" | sed 's|[^A-Za-z0-9_.-]|-|g')"
-          docker_tags+=(--tag="$_IMAGE_REPO:$${image_tag}" --tag="$_IMAGE_REPO:${_DEV_IMAGE_TAG}")
+          docker_tags+=(--tag="$_IMAGE_REPO:$${image_tag}")
+          if [[ "$${image_tag}" != "${_DEV_IMAGE_TAG}" ]]; then
+            docker_tags+=(--tag="$_IMAGE_REPO:${_DEV_IMAGE_TAG}")
+          fi
         else
           echo "Neither TAG_NAME nor BRANCH_NAME is set; Mattermost image build must run from a patched tag or branch." >&2
           exit 1
+        fi
+
+        pipeline_registry="${_IMAGE_REPO}:$${image_tag}"
+        if [[ "$${image_tag}" != "${_DEV_IMAGE_TAG}" && "$${pipeline_tag}" == "manual-or-untagged" ]]; then
+          pipeline_registry="$${pipeline_registry}; ${_IMAGE_REPO}:${_DEV_IMAGE_TAG}"
+        elif [[ "$${pipeline_tag}" != "manual-or-untagged" ]]; then
+          pipeline_registry="$${pipeline_registry}; ${_IMAGE_REPO}:latest"
         fi
 
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
@@ -169,9 +184,10 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 substitutions:
+  _CLOUDBUILD_REGION: 'southamerica-east1'
   _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
   _DEV_IMAGE_TAG: 'dev'
-  _PATCHED_BRANCH_PATTERN: '^.*-patched$'
+  _PATCHED_BRANCH_PATTERN: '^public-patched$'
   _MATTERMOST_CICD_WEBHOOK_SECRET_VERSION: 'projects/gcloud-production-1/secrets/mattermost-cicd-webhook-url/versions/latest'
 
 availableSecrets:
