@@ -14,7 +14,7 @@ steps:
     id: 'build'
     env:
       - 'DOCKER_BUILDKIT=1'
-      - 'PIPELINE_NAME=Mattermost image build'
+      - 'PIPELINE_NAME=mattermost build patched image'
       - 'PIPELINE_PROJECT_ID=$PROJECT_ID'
       - 'PIPELINE_BUILD_ID=$BUILD_ID'
       - 'PIPELINE_GITHUB_REPO=https://github.com/pilprod/mattermost'
@@ -95,7 +95,7 @@ steps:
             if [[ -s "$${pipeline_log}" ]]; then
               local report
               report="$$(tail -n 40 "$${pipeline_log}")"
-              printf -v text '%s\n\n```diff\n%s\n```' "$${text}" "$${report}"
+              printf -v text '%s\n\n\n```diff\n%s\n```' "$${text}" "$${report}"
             fi
           fi
 
