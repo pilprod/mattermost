@@ -18,12 +18,25 @@ steps:
     args:
       - '-c'
       - |
+        image_tag="$TAG_NAME"
+        tag_pattern='^v*.*-pached$'
+
+        if [[ -z "$$image_tag" ]]; then
+          echo "TAG_NAME is empty; Mattermost image build must run from a tag matching $$tag_pattern" >&2
+          exit 1
+        fi
+
+        if [[ ! "$$image_tag" =~ $$tag_pattern ]]; then
+          echo "TAG_NAME '$$image_tag' does not match required pattern $$tag_pattern" >&2
+          exit 1
+        fi
+
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
         docker buildx build \
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref=$_IMAGE_REPO:buildcache \
           --cache-to=type=registry,ref=$_IMAGE_REPO:buildcache,mode=max \
-          --tag=$_IMAGE_REPO:$TAG_NAME \
+          --tag=$_IMAGE_REPO:$$image_tag \
           --tag=$_IMAGE_REPO:latest \
           --push \
           .
