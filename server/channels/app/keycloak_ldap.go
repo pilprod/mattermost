@@ -45,6 +45,11 @@ type kcTokenResp struct {
 	AccessToken string `json:"access_token"`
 }
 
+type kcUser struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
 // adminBase derives the Keycloak Admin API base URL from DiscoveryEndpoint.
 // https://kc/realms/corp/.well-known/openid-configuration → https://kc/admin/realms/corp
 func (k *KeycloakLdap) adminBase() (string, error) {
