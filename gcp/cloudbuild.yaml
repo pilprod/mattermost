@@ -20,7 +20,6 @@ steps:
       - 'PIPELINE_CLOUDBUILD_REGION=${_CLOUDBUILD_REGION}'
       - 'PIPELINE_GITHUB_REPO=https://github.com/pilprod/mattermost'
       - 'PIPELINE_TAG=$TAG_NAME'
-      - 'PIPELINE_BRANCH=$BRANCH_NAME'
       - 'PIPELINE_SHORT_SHA=$SHORT_SHA'
       - 'IMAGE_REPO=${_IMAGE_REPO}'
       - 'DEV_IMAGE_TAG=${_DEV_IMAGE_TAG}'
@@ -35,9 +34,8 @@ steps:
 
         pipeline_started_at="$$(date -u +%s)"
         pipeline_tag="$${PIPELINE_TAG:-manual-or-untagged}"
-        pipeline_branch="$${PIPELINE_BRANCH:-}"
         pipeline_dev_image_tag="$${DEV_IMAGE_TAG:-dev}"
-        pipeline_image_tag="$${pipeline_branch:-$${PIPELINE_TAG:-manual}}"
+        pipeline_image_tag="$${PIPELINE_TAG:-manual}"
         pipeline_secondary_image_tag=""
         pipeline_push_latest="true"
         if [[ "$${pipeline_tag}" == *-dev ]]; then
@@ -63,7 +61,7 @@ steps:
         registry_path_remainder="$${registry_path#*/}"
         registry_repo_name="$${registry_path_remainder%%/*}"
         registry_image_name="$${registry_path_remainder#*/}"
-        pipeline_registry_label="$${registry_project_id}/$${registry_repo_name}/$${registry_image_name}"
+        pipeline_registry_label="$${IMAGE_REPO}"
         pipeline_registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}?project=$${registry_project_id}"
         pipeline_log="/tmp/mattermost-cicd-$${pipeline_build_id}.log"
 
