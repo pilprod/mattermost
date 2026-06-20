@@ -145,7 +145,7 @@ options:
 substitutions:
   _PIPELINE_NAME: 'mattermost image'
   _CLOUDBUILD_REGION: 'southamerica-east1'
-  _IMAGE_REPO: 'asia-southeast3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
+  _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
   _MATTERMOST_CICD_WEBHOOK_SECRET_VERSION: 'projects/gcloud-production-1/secrets/mattermost-cicd-webhook-url/versions/latest'
 
 availableSecrets:
