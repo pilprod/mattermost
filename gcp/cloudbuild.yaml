@@ -173,6 +173,42 @@ steps:
         fi
     timeout: '3600s'
 
+  - name: 'gcr.io/google.com/cloudsdktool/google-cloud-cli:alpine'
+    id: 'deploy-yourown-chat'
+    waitFor: ['build']
+    env:
+      - 'PIPELINE_TAG=$TAG_NAME'
+      - 'PIPELINE_SHORT_SHA=$SHORT_SHA'
+      - 'TARGET_PROJECT_ID=$PROJECT_ID'
+      - 'CLOUDBUILD_REGION=${_CLOUDBUILD_REGION}'
+      - 'YOUROWN_CHAT_DEPLOY_TRIGGER_ID=${_YOUROWN_CHAT_DEPLOY_TRIGGER_ID}'
+      - 'YOUROWN_CHAT_DEPLOY_BRANCH=${_YOUROWN_CHAT_DEPLOY_BRANCH}'
+    script: |
+      #!/usr/bin/env sh
+      set -eu
+
+      pipeline_tag="${PIPELINE_TAG:-}"
+      case "${pipeline_tag}" in
+        v*-patched|v*patched-dev)
+          ;;
+        *)
+          echo "Skipping yourown-chat deploy trigger for tag: ${pipeline_tag:-manual-or-untagged}"
+          exit 0
+          ;;
+      esac
+
+      if [ -z "${YOUROWN_CHAT_DEPLOY_TRIGGER_ID:-}" ]; then
+        echo "_YOUROWN_CHAT_DEPLOY_TRIGGER_ID is empty; cannot trigger yourown-chat deploy" >&2
+        exit 1
+      fi
+
+      gcloud builds triggers run "${YOUROWN_CHAT_DEPLOY_TRIGGER_ID}" \
+        --project="${TARGET_PROJECT_ID}" \
+        --region="${CLOUDBUILD_REGION}" \
+        --branch="${YOUROWN_CHAT_DEPLOY_BRANCH:-main}" \
+        --substitutions="_IMAGE_TRIGGER_TAG=${pipeline_tag},_IMAGE_TRIGGER_PROJECT=pilprod/mattermost,_IMAGE_TRIGGER_REPO=https://github.com/pilprod/mattermost,_IMAGE_TRIGGER_SHORT_SHA=${PIPELINE_SHORT_SHA:-unknown-sha}"
+    timeout: '1800s'
+
 timeout: '3600s'
 
 options:
@@ -184,3 +220,5 @@ substitutions:
   _CLOUDBUILD_REGION: 'southamerica-east1'
   _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
   _DEV_IMAGE_TAG: 'dev'
+  _YOUROWN_CHAT_DEPLOY_TRIGGER_ID: 'yourown-chat-rke2-deploy'
+  _YOUROWN_CHAT_DEPLOY_BRANCH: 'main'
