@@ -29,9 +29,11 @@ FROM golang:1.26.4-alpine AS server-builder
 WORKDIR /src/server
 COPY server/ .
 
-# Build metadata injected from the CI pipeline (Cloud Build), shown in the
-# "About Mattermost" dialog. Defaults keep local builds working.
-ARG BUILD_NUMBER=dev
+# Build metadata injected from CI, shown in the "About Mattermost" dialog.
+# BUILD_NUMBER = git commit count (monotonically increasing integer)
+# BUILD_HASH   = full 40-char git commit SHA (identifies the source / image)
+# BUILD_DATE   = UTC ISO-8601 build timestamp
+ARG BUILD_NUMBER=0
 ARG BUILD_HASH=dev
 ARG BUILD_DATE=
 
