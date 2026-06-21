@@ -218,3 +218,20 @@ binary carries the vulnerable stdlib.
 
 The remaining findings (glibc, openssl) originate from the upstream
 `mattermost-team-edition:11.8` base image and have no upstream fix available.
+
+---
+
+## 11. Right-Click Context Menu on Messages
+
+**File:** `webapp/channels/src/components/post/post_component.tsx`
+
+Adds a Slack-like right-click context menu to every message. Right-clicking on
+any message body prevents the browser's native context menu and instead opens
+the post's existing **More actions** (dot-menu) inline — the same menu that
+appears when hovering a message and clicking the `⋯` button.
+
+- Works in the centre channel feed, RHS thread panel, and search results.
+- Disabled while a post is being edited.
+- Disabled on mobile view (touch devices retain native context menu behaviour).
+- No new menu items are introduced; the menu reuses the full action set already
+  present in the dot-menu (Reply, Forward, React, Save, Pin, Edit, Delete …).

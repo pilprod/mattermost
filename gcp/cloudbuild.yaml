@@ -150,6 +150,7 @@ steps:
         fi
 
         pipeline_build_date="$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        git -C /workspace fetch --unshallow 2>/dev/null || true
         pipeline_commit_count="$$(git -C /workspace rev-list --count HEAD 2>/dev/null || echo 0)"
 
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
