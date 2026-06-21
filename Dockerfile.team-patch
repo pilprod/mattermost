@@ -29,23 +29,29 @@ FROM golang:1.26.4-alpine AS server-builder
 WORKDIR /src/server
 COPY server/ .
 
+# Build metadata injected from the CI pipeline (Cloud Build), shown in the
+# "About Mattermost" dialog. Defaults keep local builds working.
+ARG BUILD_NUMBER=dev
+ARG BUILD_HASH=dev
+ARG BUILD_DATE=
+
 # go.work wires the main module (.) to the embedded public sub-module (./public).
 # This mirrors what `make setup-go-work` does for Team Edition (no enterprise).
 RUN go work init && go work use . && go work use ./public
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    MODEL=github.com/mattermost/mattermost/server/public/model; \
+    LDFLAGS="-s -w"; \
+    LDFLAGS="$LDFLAGS -X $MODEL.BuildNumber=$BUILD_NUMBER"; \
+    LDFLAGS="$LDFLAGS -X $MODEL.BuildHash=$BUILD_HASH"; \
+    LDFLAGS="$LDFLAGS -X $MODEL.BuildDate=$BUILD_DATE"; \
     CGO_ENABLED=0 GOOS=linux \
-    go build \
-        -buildvcs=false \
-        -ldflags='-s -w' \
-        -o /out/mattermost \
-        ./cmd/mattermost && \
-    go build \
-        -buildvcs=false \
-        -ldflags='-s -w' \
-        -o /out/mmctl \
-        ./cmd/mmctl
+    go build -buildvcs=false -ldflags="$LDFLAGS" \
+        -o /out/mattermost ./cmd/mattermost && \
+    CGO_ENABLED=0 GOOS=linux \
+    go build -buildvcs=false -ldflags="$LDFLAGS" \
+        -o /out/mmctl ./cmd/mmctl
 
 # Fail the build if either binary was not compiled with the patched toolchain.
 RUN go version /out/mattermost | grep -q 'go1\.26\.4' \
