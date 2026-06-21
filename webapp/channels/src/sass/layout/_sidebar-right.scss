@@ -23,7 +23,7 @@
         &.sidebar--right--width-holder {
             @media screen and (min-width: 901px) and (max-width: 1200px) {
                 min-width: 304px;
-                max-width: 50vw;
+                max-width: calc((100vw - var(--overrideLhsWidth, 264px)) / 2);
             }
         }
 
@@ -33,7 +33,7 @@
 
         @media screen and (min-width: 901px) {
             min-width: 304px;
-            max-width: 50vw;
+            max-width: calc((100vw - var(--overrideLhsWidth, 264px)) / 2);
         }
     }
 
