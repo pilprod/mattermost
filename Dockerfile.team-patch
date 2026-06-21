@@ -67,10 +67,9 @@ COPY --from=server-builder --chown=2000:2000 \
 COPY --from=webapp-builder --chown=2000:2000 \
     /src/webapp/channels/dist/ /mattermost/client/
 
-# Verify the binary in the final image really is go1.26.4.
-# Catches the case where the registry buildcache serves a stale final-stage layer
-# that contains the old binary even though server-builder was rebuilt.
-RUN grep -qF 'go1.26.4' /mattermost/bin/mattermost \
-    || (echo "FATAL: /mattermost/bin/mattermost does not contain go1.26.4 — registry cache served stale final layer" && exit 1)
+# Note: the binary is verified to be go1.26.4 in the server-builder stage.
+# The final image is minimal (no /bin/sh), so it can't run a verification
+# command here — but --no-cache-filter=runtime guarantees this COPY always
+# pulls the freshly built binary rather than a stale cached layer.
 
 USER 2000
