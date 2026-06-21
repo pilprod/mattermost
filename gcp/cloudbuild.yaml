@@ -55,7 +55,10 @@ steps:
           pipeline_project="$${pipeline_name}"
         fi
         pipeline_build_url="https://console.cloud.google.com/cloud-build/builds;region=$${pipeline_cloudbuild_region}/$${pipeline_build_id}?project=$${pipeline_project_id}"
-        pipeline_workflow_id="$${pipeline_project}|$${pipeline_tag}|$${pipeline_short_sha}"
+        pipeline_workflow_id="$${pipeline_project}|$${pipeline_tag}"
+        if [[ "$${pipeline_tag}" == "manual-or-untagged" ]]; then
+          pipeline_workflow_id="$${pipeline_workflow_id}|$${pipeline_short_sha}"
+        fi
         pipeline_tag_url=""
         if [[ -n "$${pipeline_github_repo}" && "$${pipeline_tag}" != "manual-or-untagged" ]]; then
           pipeline_tag_url="$${pipeline_github_repo}/tree/$${pipeline_tag}"
