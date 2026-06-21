@@ -23,7 +23,7 @@
         &.sidebar--right--width-holder {
             @media screen and (min-width: 901px) and (max-width: 1200px) {
                 min-width: 304px;
-                max-width: 304px;
+                max-width: 50vw;
             }
         }
 
@@ -33,15 +33,7 @@
 
         @media screen and (min-width: 901px) {
             min-width: 304px;
-            max-width: 400px;
-        }
-
-        @media screen and (min-width: 1201px) {
-            max-width: 464px;
-        }
-
-        @media screen and (min-width: 1681px) {
-            max-width: 776px;
+            max-width: 50vw;
         }
     }
 
