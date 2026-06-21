@@ -153,8 +153,6 @@ steps:
         fi
 
         pipeline_build_date="$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        git -C /workspace fetch --unshallow 2>/dev/null || true
-        pipeline_commit_count="$$(git -C /workspace rev-list --count HEAD 2>/dev/null || echo 0)"
 
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
         docker buildx build \
@@ -162,8 +160,8 @@ steps:
           --cache-from=type=registry,ref="$${IMAGE_REPO}:buildcache" \
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
           --no-cache-filter=server-builder,runtime \
-          --build-arg BUILD_NUMBER="$${pipeline_commit_count}" \
-          --build-arg BUILD_HASH="$${pipeline_commit_sha}" \
+          --build-arg BUILD_NUMBER="$${pipeline_tag}" \
+          --build-arg BUILD_HASH="$${pipeline_short_sha}" \
           --build-arg BUILD_DATE="$${pipeline_build_date}" \
           --metadata-file="$${pipeline_metadata_file}" \
           "$${tag_args[@]}" \
