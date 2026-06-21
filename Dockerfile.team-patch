@@ -54,7 +54,7 @@ RUN go version /out/mattermost && \
 # The official image already has the correct directory layout, plugins,
 # i18n files, etc.  We only replace the binary and the webapp assets.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM mattermost/mattermost-team-edition:11.8
+FROM mattermost/mattermost-team-edition:11.8 AS runtime
 
 USER root
 
@@ -66,5 +66,11 @@ COPY --from=server-builder --chown=2000:2000 \
 # The official image serves static files from /mattermost/client/.
 COPY --from=webapp-builder --chown=2000:2000 \
     /src/webapp/channels/dist/ /mattermost/client/
+
+# Verify the binary in the final image really is go1.26.4.
+# Catches the case where the registry buildcache serves a stale final-stage layer
+# that contains the old binary even though server-builder was rebuilt.
+RUN grep -qF 'go1.26.4' /mattermost/bin/mattermost \
+    || (echo "FATAL: /mattermost/bin/mattermost does not contain go1.26.4 — registry cache served stale final layer" && exit 1)
 
 USER 2000
