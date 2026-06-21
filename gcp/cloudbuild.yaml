@@ -199,12 +199,17 @@ steps:
           tag_args+=(--tag "$${IMAGE_REPO}:latest")
         fi
 
+        pipeline_build_date="$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
         docker buildx build \
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref="$${IMAGE_REPO}:buildcache" \
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
           --no-cache-filter=server-builder,runtime \
+          --build-arg BUILD_NUMBER="$${pipeline_build_id}" \
+          --build-arg BUILD_HASH="$${pipeline_short_sha}" \
+          --build-arg BUILD_DATE="$${pipeline_build_date}" \
           --metadata-file="$${pipeline_metadata_file}" \
           "$${tag_args[@]}" \
           --push \
