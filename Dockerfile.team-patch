@@ -42,6 +42,12 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
         -o /out/mattermost \
         ./cmd/mattermost
 
+# Fail the build if the binary was not compiled with the patched toolchain.
+# Guards against a stale registry cache silently producing a 1.26.3 binary.
+RUN go version /out/mattermost && \
+    go version /out/mattermost | grep -q 'go1\.26\.4' \
+    || (echo "FATAL: mattermost binary not built with Go 1.26.4 (CVE-2026-42504/27145/42507)" && exit 1)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — final image

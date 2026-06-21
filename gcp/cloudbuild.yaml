@@ -161,6 +161,7 @@ steps:
           --file=Dockerfile.team-patch \
           --cache-from=type=registry,ref="$${IMAGE_REPO}:buildcache" \
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
+          --no-cache-filter=server-builder \
           --metadata-file="$${pipeline_metadata_file}" \
           "$${tag_args[@]}" \
           --push \
