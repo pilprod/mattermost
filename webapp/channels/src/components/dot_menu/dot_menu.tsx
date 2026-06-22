@@ -88,6 +88,7 @@ type Props = {
     handleDropdownOpened: (open: boolean) => void;
     handleAddReactionClick?: (showEmojiPicker: boolean) => void;
     isMenuOpen?: boolean;
+    contextMenuPosition?: {top: number; left: number};
     isReadOnly?: boolean;
     isLicensed?: boolean; // TechDebt: Made non-mandatory while converting to typescript
     postEditTimeLimit?: string; // TechDebt: Made non-mandatory while converting to typescript
@@ -626,6 +627,7 @@ export class DotMenuClass extends React.PureComponent<Props, State> {
                     onKeyDown: this.handleMenuKeydown,
                     width: '264px',
                     onToggle: this.handleMenuToggle,
+                    anchorPosition: this.props.contextMenuPosition,
                 }}
                 menuButtonTooltip={{
                     text: formatMessage({id: 'post_info.dot_menu.tooltip.more', defaultMessage: 'More'}),
