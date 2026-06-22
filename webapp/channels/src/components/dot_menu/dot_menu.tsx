@@ -627,6 +627,7 @@ export class DotMenuClass extends React.PureComponent<Props, State> {
                     onKeyDown: this.handleMenuKeydown,
                     width: '264px',
                     onToggle: this.handleMenuToggle,
+                    isMenuOpen: this.props.contextMenuPosition ? this.props.isMenuOpen : undefined,
                     anchorPosition: this.props.contextMenuPosition,
                 }}
                 menuButtonTooltip={{
