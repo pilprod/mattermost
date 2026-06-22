@@ -4,7 +4,6 @@
 import classNames from 'classnames';
 import React, {useCallback, useEffect, useRef, useState, useMemo} from 'react';
 import type {MouseEvent} from 'react';
-import {flushSync} from 'react-dom';
 import {FormattedMessage, useIntl} from 'react-intl';
 
 import {WithTooltip} from '@mattermost/shared/components/tooltip';
@@ -163,6 +162,7 @@ function PostComponent(props: Props) {
     const [hasReceivedA11yFocus, setHasReceivedA11yFocus] = useState(false);
     const [burnOnReadRevealing, setBurnOnReadRevealing] = useState(false);
     const [burnOnReadRevealError, setBurnOnReadRevealError] = useState<string | null>(null);
+    const [contextMenuPosition, setContextMenuPosition] = useState<{top: number; left: number} | undefined>(undefined);
 
     const {locale} = useIntl();
 
@@ -342,6 +342,9 @@ function PostComponent(props: Props) {
             togglePostMenu(opened);
         }
         setDropdownOpened(opened);
+        if (!opened) {
+            setContextMenuPosition(undefined);
+        }
     }, [togglePostMenu]);
 
     const handleMouseOver = useCallback((e: MouseEvent<HTMLDivElement>) => {
@@ -359,9 +362,9 @@ function PostComponent(props: Props) {
             return;
         }
         e.preventDefault();
-        flushSync(() => setHover(true));
-        document.getElementById(`${props.location}_button_${post.id}`)?.click();
-    }, [props.isPostBeingEdited, props.isMobileView, props.location, post.id]);
+        setContextMenuPosition({top: e.clientY, left: e.clientX});
+        setDropdownOpened(true);
+    }, [props.isPostBeingEdited, props.isMobileView]);
 
     const handleCardClick = (post?: Post) => {
         if (!post) {
@@ -876,6 +879,7 @@ function PostComponent(props: Props) {
                                 removePost={props.actions.removePost}
                                 handleJumpClick={handleJumpClick}
                                 isPostHeaderVisible={getPostHeaderVisible()}
+                                contextMenuPosition={contextMenuPosition}
                             />
                             }
                         </div>
