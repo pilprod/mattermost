@@ -76,6 +76,12 @@ type MenuProps = {
     isMenuOpen?: boolean;
 
     /**
+     * When set, the menu opens at these viewport coordinates (cursor position)
+     * instead of anchoring to the trigger button.
+     */
+    anchorPosition?: {top: number; left: number};
+
+    /**
      * When true, hides the MUI Popover backdrop so elements behind the
      * menu remain interactive (e.g. during drag-and-drop).
      */
@@ -306,11 +312,12 @@ export function Menu(props: Props) {
         <CompassDesignProvider theme={theme}>
             {renderMenuButton()}
             <MenuContext.Provider value={providerValue}>
-                {/* Wait for the anchor; gate on menuButton only so MUI's
-                    open/close transitions still run. */}
-                {menuButton && (
+                {/* Gate on menuButton OR anchorPosition so transitions still run. */}
+                {(menuButton || props.menu.anchorPosition) && (
                     <MuiPopover
-                        anchorEl={menuButton}
+                        anchorReference={props.menu.anchorPosition ? 'anchorPosition' : 'anchorEl'}
+                        anchorEl={props.menu.anchorPosition ? undefined : menuButton}
+                        anchorPosition={props.menu.anchorPosition}
                         open={isMenuOpen}
                         onClose={handleMenuClose}
                         onClick={handleMenuClick}

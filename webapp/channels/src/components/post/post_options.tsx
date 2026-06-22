@@ -57,6 +57,7 @@ type Props = {
     isChannelAutotranslated: boolean;
     isBurnOnReadPost?: boolean;
     shouldDisplayBurnOnReadConcealed?: boolean;
+    contextMenuPosition?: {top: number; left: number};
     actions: {
         emitShortcutReactToLastPostFrom: (emittedFrom: 'CENTER' | 'RHS_ROOT' | 'NO_WHERE') => void;
     };
@@ -71,6 +72,12 @@ const PostOptions = (props: Props): JSX.Element => {
         setShowEmojiPicker(show);
         props.handleDropdownOpened!(show);
     }, [props.handleDropdownOpened]);
+
+    useEffect(() => {
+        if (props.contextMenuPosition) {
+            setShowDotMenu(true);
+        }
+    }, [props.contextMenuPosition]);
 
     const lastEmittedFrom = useRef(props.shortcutReactToLastPostEmittedFrom);
     useEffect(() => {
@@ -238,6 +245,7 @@ const PostOptions = (props: Props): JSX.Element => {
                 handleAddReactionClick={toggleEmojiPicker}
                 isReadOnly={isReadOnly || channelIsArchived}
                 isMenuOpen={showDotMenu}
+                contextMenuPosition={props.contextMenuPosition}
                 enableEmojiPicker={props.enableEmojiPicker}
                 isChannelAutotranslated={props.isChannelAutotranslated}
             />
