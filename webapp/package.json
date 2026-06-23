@@ -69,6 +69,10 @@
     },
     "braces": "3.0.3",
     "cheerio": "1.0.0-rc.12",
+    "sha.js": "2.4.12",
+    "cipher-base": "1.0.6",
+    "shell-quote": "1.8.4",
+    "fast-xml-parser": "4.5.6",
     "@testing-library/dom": {
       "dom-accessibility-api": "0.6.3"
     },
