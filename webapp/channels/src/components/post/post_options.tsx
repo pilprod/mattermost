@@ -70,6 +70,11 @@ const PostOptions = (props: Props): JSX.Element => {
     const [showActionsMenu, setShowActionsMenu] = useState(false);
     const [showPluginMenu, setShowPluginMenu] = useState(false);
 
+    // True from the right-click until the dot menu has fully closed. Keeps the
+    // dot menu's isMenuOpen controlled so it can be driven to `false` to close,
+    // even after contextMenuPosition has been cleared.
+    const [contextControlled, setContextControlled] = useState(false);
+
     const toggleEmojiPicker = useCallback((show: boolean) => {
         setShowEmojiPicker(show);
         props.handleDropdownOpened!(show);
@@ -77,8 +82,12 @@ const PostOptions = (props: Props): JSX.Element => {
 
     useEffect(() => {
         if (props.contextMenuPosition) {
+            // Right-click: force the menu open and mark it as controlled.
+            setContextControlled(true);
             setShowDotMenu(true);
         } else {
+            // Position cleared (click-away / Esc): drive the controlled menu to
+            // closed. contextControlled stays true until onToggle(false) fires.
             setShowDotMenu(false);
         }
     }, [props.contextMenuPosition]);
@@ -123,6 +132,10 @@ const PostOptions = (props: Props): JSX.Element => {
 
     const handleDotMenuOpened = (open: boolean) => {
         setShowDotMenu(open);
+        if (!open) {
+            // Menu fully closed — release context-menu control.
+            setContextControlled(false);
+        }
         props.handleDropdownOpened!(open);
     };
 
@@ -258,6 +271,7 @@ const PostOptions = (props: Props): JSX.Element => {
                 isReadOnly={isReadOnly || channelIsArchived}
                 isMenuOpen={showDotMenu}
                 contextMenuPosition={props.contextMenuPosition}
+                contextControlled={contextControlled}
                 enableEmojiPicker={props.enableEmojiPicker}
                 isChannelAutotranslated={props.isChannelAutotranslated}
             />

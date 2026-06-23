@@ -89,6 +89,14 @@ type Props = {
     handleAddReactionClick?: (showEmojiPicker: boolean) => void;
     isMenuOpen?: boolean;
     contextMenuPosition?: {top: number; left: number};
+
+    /**
+     * True while the menu is driven by the right-click context-menu flow.
+     * Stays true from the right-click until the menu has fully closed, so the
+     * controlled isMenuOpen can express `false` to close the menu (clearing
+     * contextMenuPosition alone would only release control and leave it open).
+     */
+    contextControlled?: boolean;
     isReadOnly?: boolean;
     isLicensed?: boolean; // TechDebt: Made non-mandatory while converting to typescript
     postEditTimeLimit?: string; // TechDebt: Made non-mandatory while converting to typescript
@@ -627,9 +635,9 @@ export class DotMenuClass extends React.PureComponent<Props, State> {
                     onKeyDown: this.handleMenuKeydown,
                     width: '264px',
                     onToggle: this.handleMenuToggle,
-                    isMenuOpen: this.props.contextMenuPosition ? this.props.isMenuOpen : undefined,
+                    isMenuOpen: this.props.contextControlled ? this.props.isMenuOpen : undefined,
                     anchorPosition: this.props.contextMenuPosition,
-                    autoFocusItem: this.props.contextMenuPosition ? false : undefined,
+                    autoFocusItem: this.props.contextControlled ? false : undefined,
                 }}
                 menuButtonTooltip={{
                     text: formatMessage({id: 'post_info.dot_menu.tooltip.more', defaultMessage: 'More'}),
