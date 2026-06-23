@@ -73,6 +73,13 @@ const PostOptions = (props: Props): JSX.Element => {
     // even after contextMenuPosition has been cleared.
     const [contextControlled, setContextControlled] = useState(false);
 
+    // Last cursor anchor for the right-click menu. Kept alive until the menu has
+    // fully closed so the close stays anchored at the cursor. If we dropped it
+    // the moment props.contextMenuPosition clears, there would be a frame where
+    // the menu is still open but unanchored, making MUI fall back to the dots
+    // button and briefly flash the menu there.
+    const [contextAnchor, setContextAnchor] = useState<{top: number; left: number} | undefined>(undefined);
+
     const toggleEmojiPicker = useCallback((show: boolean) => {
         setShowEmojiPicker(show);
         props.handleDropdownOpened!(show);
@@ -81,11 +88,13 @@ const PostOptions = (props: Props): JSX.Element => {
     useEffect(() => {
         if (props.contextMenuPosition) {
             // Right-click: force the menu open and mark it as controlled.
+            setContextAnchor(props.contextMenuPosition);
             setContextControlled(true);
             setShowDotMenu(true);
         } else {
             // Position cleared (click-away / Esc): drive the controlled menu to
-            // closed. contextControlled stays true until onToggle(false) fires.
+            // closed. contextControlled and contextAnchor stay set until
+            // onToggle(false) fires, keeping the menu anchored while it closes.
             setShowDotMenu(false);
         }
     }, [props.contextMenuPosition]);
@@ -131,8 +140,9 @@ const PostOptions = (props: Props): JSX.Element => {
     const handleDotMenuOpened = (open: boolean) => {
         setShowDotMenu(open);
         if (!open) {
-            // Menu fully closed — release context-menu control.
+            // Menu fully closed — release context-menu control and drop the anchor.
             setContextControlled(false);
+            setContextAnchor(undefined);
         }
         props.handleDropdownOpened!(open);
     };
@@ -260,7 +270,7 @@ const PostOptions = (props: Props): JSX.Element => {
                 handleAddReactionClick={toggleEmojiPicker}
                 isReadOnly={isReadOnly || channelIsArchived}
                 isMenuOpen={showDotMenu}
-                contextMenuPosition={props.contextMenuPosition}
+                contextMenuPosition={contextAnchor}
                 contextControlled={contextControlled}
                 enableEmojiPicker={props.enableEmojiPicker}
                 isChannelAutotranslated={props.isChannelAutotranslated}
