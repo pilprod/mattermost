@@ -344,7 +344,7 @@ function PostComponent(props: Props) {
     const getClassName = () => {
         const isMeMessage = checkIsMeMessage(post);
         const hovered =
-            hover || fileDropdownOpened || dropdownOpened || a11yActive || props.isPostBeingEdited;
+            hover || fileDropdownOpened || dropdownOpened || a11yActive || props.isPostBeingEdited || Boolean(contextMenuPosition);
         return classNames('a11y__section post', {
             'post--highlight': shouldHighlight && !fadeOutHighlight,
             'same--root': hasSameRoot(props),
@@ -396,8 +396,19 @@ function PostComponent(props: Props) {
         }
         e.preventDefault();
         setContextMenuPosition({top: e.clientY, left: e.clientX});
-        setDropdownOpened(true);
     }, [props.isPostBeingEdited, props.isMobileView]);
+
+    useEffect(() => {
+        if (!contextMenuPosition) {
+            return undefined;
+        }
+        const handleDocumentClick = () => {
+            setContextMenuPosition(undefined);
+            setDropdownOpened(false);
+        };
+        document.addEventListener('click', handleDocumentClick);
+        return () => document.removeEventListener('click', handleDocumentClick);
+    }, [contextMenuPosition]);
 
     const handleCardClick = (post?: Post) => {
         if (!post) {

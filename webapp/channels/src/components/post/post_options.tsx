@@ -78,6 +78,8 @@ const PostOptions = (props: Props): JSX.Element => {
     useEffect(() => {
         if (props.contextMenuPosition) {
             setShowDotMenu(true);
+        } else {
+            setShowDotMenu(false);
         }
     }, [props.contextMenuPosition]);
 

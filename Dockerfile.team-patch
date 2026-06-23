@@ -30,11 +30,13 @@ WORKDIR /src/server
 COPY server/ .
 
 # Build metadata injected from CI, shown in the "About Mattermost" dialog.
-# BUILD_NUMBER = git commit count (monotonically increasing integer)
-# BUILD_HASH   = full 40-char git commit SHA (identifies the source / image)
-# BUILD_DATE   = UTC ISO-8601 build timestamp
+# BUILD_NUMBER  = git tag name (e.g. v11.8.1-patched)
+# BUILD_HASH    = full 40-char git commit SHA
+# EE_BUILD_HASH = Cloud Build build ID (UUID)
+# BUILD_DATE    = UTC ISO-8601 build timestamp
 ARG BUILD_NUMBER=0
 ARG BUILD_HASH=dev
+ARG EE_BUILD_HASH=
 ARG BUILD_DATE=
 
 # go.work wires the main module (.) to the embedded public sub-module (./public).
@@ -47,6 +49,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     LDFLAGS="-s -w"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildNumber=$BUILD_NUMBER"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildHash=$BUILD_HASH"; \
+    LDFLAGS="$LDFLAGS -X $MODEL.BuildHashEnterprise=$EE_BUILD_HASH"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildDate=$BUILD_DATE"; \
     CGO_ENABLED=0 GOOS=linux \
     go build -buildvcs=false -ldflags="$LDFLAGS" \
