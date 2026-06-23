@@ -629,6 +629,7 @@ export class DotMenuClass extends React.PureComponent<Props, State> {
                     onToggle: this.handleMenuToggle,
                     isMenuOpen: this.props.contextMenuPosition ? this.props.isMenuOpen : undefined,
                     anchorPosition: this.props.contextMenuPosition,
+                    autoFocusItem: this.props.contextMenuPosition ? false : undefined,
                 }}
                 menuButtonTooltip={{
                     text: formatMessage({id: 'post_info.dot_menu.tooltip.more', defaultMessage: 'More'}),
