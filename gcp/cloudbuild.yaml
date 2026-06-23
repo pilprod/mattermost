@@ -161,7 +161,8 @@ steps:
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
           --no-cache-filter=server-builder,runtime \
           --build-arg BUILD_NUMBER="$${pipeline_tag}" \
-          --build-arg BUILD_HASH="$${pipeline_short_sha}" \
+          --build-arg BUILD_HASH="$${pipeline_commit_sha}" \
+          --build-arg EE_BUILD_HASH="$${pipeline_build_id}" \
           --build-arg BUILD_DATE="$${pipeline_build_date}" \
           --metadata-file="$${pipeline_metadata_file}" \
           "$${tag_args[@]}" \
