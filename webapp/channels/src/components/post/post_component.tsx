@@ -311,7 +311,7 @@ function PostComponent(props: Props) {
     const getClassName = () => {
         const isMeMessage = checkIsMeMessage(post);
         const hovered =
-            hover || fileDropdownOpened || dropdownOpened || a11yActive || props.isPostBeingEdited || Boolean(contextMenuPosition);
+            hover || fileDropdownOpened || dropdownOpened || a11yActive || props.isPostBeingEdited;
         return classNames('a11y__section post', {
             'post--highlight': shouldHighlight && !fadeOutHighlight,
             'same--root': hasSameRoot(props),
@@ -363,18 +363,30 @@ function PostComponent(props: Props) {
         }
         e.preventDefault();
         setContextMenuPosition({top: e.clientY, left: e.clientX});
+        setDropdownOpened(true);
     }, [props.isPostBeingEdited, props.isMobileView]);
 
+    // While the right-click context menu is open, dismiss it on any mouse press
+    // outside the menu's own paper. We use the capture phase so this runs before
+    // MUI's Popover stops event propagation, and clearing contextMenuPosition
+    // drives the controlled menu to closed (mirrors what Esc already does).
     useEffect(() => {
         if (!contextMenuPosition) {
             return undefined;
         }
-        const handleDocumentClick = () => {
+        const handlePointerDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement | null;
+
+            // Clicks on a menu/submenu item are handled by the item itself,
+            // which closes the menu and resets state via onToggle.
+            if (target && target.closest('.MuiPopover-paper')) {
+                return;
+            }
             setContextMenuPosition(undefined);
             setDropdownOpened(false);
         };
-        document.addEventListener('click', handleDocumentClick);
-        return () => document.removeEventListener('click', handleDocumentClick);
+        document.addEventListener('mousedown', handlePointerDown, true);
+        return () => document.removeEventListener('mousedown', handlePointerDown, true);
     }, [contextMenuPosition]);
 
     const handleCardClick = (post?: Post) => {

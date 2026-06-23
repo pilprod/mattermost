@@ -73,6 +73,11 @@ export function SubMenu(props: Props) {
     const [anchorElement, setAnchorElement] = useState<null | HTMLElement>(null);
     const isSubMenuOpen = Boolean(anchorElement);
 
+    // Track how the submenu was opened. When opened by mouse hover we don't
+    // auto-focus the first item (no forced highlight, OS-native feel); when
+    // opened via keyboard we do, so arrow-key navigation has a starting point.
+    const [openedByKeyboard, setOpenedByKeyboard] = useState(false);
+
     const isMobileView = useSelector(getIsMobileView);
     const anyModalOpen = useSelector(isAnyModalOpen);
 
@@ -102,6 +107,7 @@ export function SubMenu(props: Props) {
 
     function handleMouseEnter(event: MouseEvent<HTMLLIElement>) {
         event.preventDefault();
+        setOpenedByKeyboard(false);
         setAnchorElement(event.currentTarget);
     }
 
@@ -117,6 +123,7 @@ export function SubMenu(props: Props) {
             isKeyPressed(event, Constants.KeyCodes.RIGHT)
         ) {
             event.preventDefault();
+            setOpenedByKeyboard(true);
             setAnchorElement(event.currentTarget);
         }
     }
@@ -186,7 +193,7 @@ export function SubMenu(props: Props) {
                         aria-describedby={menuAriaDescribedBy}
                         className={A11yClassNames.POPUP}
                         onKeyDown={handleSubMenuKeyDown}
-                        autoFocusItem={isSubMenuOpen}
+                        autoFocusItem={isSubMenuOpen && openedByKeyboard}
                         sx={{
                             py: 0,
                             pointerEvents: 'auto',
