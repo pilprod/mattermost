@@ -154,6 +154,12 @@ function PostComponent(props: Props) {
     const teamId = props.team?.id ?? props.currentTeam?.id ?? '';
 
     const [hover, setHover] = useState(false);
+
+    // Set to true when the context menu is dismissed by a click-outside, so
+    // the very next mouseenter (fired when the backdrop disappears) is ignored.
+    // Cleared on the first subsequent mouseenter (one-shot) and on mouseleave.
+    const rejectNextEnter = useRef(false);
+
     const [a11yActive, setA11y] = useState(false);
     const [dropdownOpened, setDropdownOpened] = useState(false);
     const [fileDropdownOpened, setFileDropdownOpened] = useState(false);
@@ -348,11 +354,19 @@ function PostComponent(props: Props) {
     }, [togglePostMenu]);
 
     const handleMouseOver = useCallback((e: MouseEvent<HTMLDivElement>) => {
+        if (rejectNextEnter.current) {
+            // Ignore the first mouseenter after a context-menu click-away: this
+            // mouseenter is a browser side-effect of the MUI backdrop disappearing,
+            // not a genuine user hover.
+            rejectNextEnter.current = false;
+            return;
+        }
         setHover(true);
         setAlt(e.altKey);
     }, []);
 
     const handleMouseLeave = useCallback(() => {
+        rejectNextEnter.current = false;
         setHover(false);
         setAlt(false);
     }, []);
@@ -382,6 +396,11 @@ function PostComponent(props: Props) {
             if (target && target.closest('.MuiPopover-paper')) {
                 return;
             }
+
+            // Arm the rejection flag BEFORE clearing state so that the
+            // mouseenter fired when the MUI backdrop disappears is ignored.
+            rejectNextEnter.current = true;
+            setHover(false);
             setContextMenuPosition(undefined);
             setDropdownOpened(false);
         };
