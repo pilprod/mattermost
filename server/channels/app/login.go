@@ -305,28 +305,36 @@ func (a *App) AttachSessionCookies(rctx request.CTX, w http.ResponseWriter, r *h
 		HttpOnly: true,
 		Domain:   domain,
 		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
 	}
 
 	userCookie := &http.Cookie{
-		Name:    model.SessionCookieUser,
-		Value:   rctx.Session().UserId,
-		Path:    subpath,
-		MaxAge:  maxAgeSeconds,
-		Expires: expiresAt,
-		Domain:  domain,
-		Secure:  secure,
+		Name:     model.SessionCookieUser,
+		Value:    rctx.Session().UserId,
+		Path:     subpath,
+		MaxAge:   maxAgeSeconds,
+		Expires:  expiresAt,
+		Domain:   domain,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
 	}
 
 	csrfCookie := &http.Cookie{
-		Name:    model.SessionCookieCsrf,
-		Value:   rctx.Session().GetCSRF(),
-		Path:    subpath,
-		MaxAge:  maxAgeSeconds,
-		Expires: expiresAt,
-		Domain:  domain,
-		Secure:  secure,
+		Name:     model.SessionCookieCsrf,
+		Value:    rctx.Session().GetCSRF(),
+		Path:     subpath,
+		MaxAge:   maxAgeSeconds,
+		Expires:  expiresAt,
+		Domain:   domain,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
 	}
 
+	// Embedded (iframe) usage requires SameSite=None so the cookies are sent in
+	// a third-party context; this is only allowed alongside Secure. Otherwise we
+	// keep the explicit Lax default above, which still permits the top-level GET
+	// redirect used by the OIDC/Keycloak login flow while blocking cross-site
+	// cookie leakage.
 	if secure && utils.CheckEmbeddedCookie(r) {
 		sessionCookie.SameSite = http.SameSiteNoneMode
 		userCookie.SameSite = http.SameSiteNoneMode
