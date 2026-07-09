@@ -1,8 +1,8 @@
 # Mattermost Team Edition — Custom Patches
 
 This document describes all customizations applied on top of the official
-Mattermost Team Edition release (`v11.8.1`). The patched image is published as
-`mattermost:latest` / `mattermost:v11.8.1-patched`.
+Mattermost Team Edition release (`v11.8.3`). The patched image is published as
+`mattermost:latest` / `mattermost:v11.8.3-patched`.
 
 ---
 
@@ -50,35 +50,45 @@ All fonts are self-hosted as WOFF2 files — no external CDN requests.
 
 ---
 
-## 3. Builtin LDAP / Keycloak Integration
+## 3. Keycloak / OIDC Authentication & Group Sync
 
 **Files:** `server/channels/app/ldap.go`, `server/channels/api4/ldap.go`,
-`server/channels/app/keycloak_ldap.go`, `server/channels/app/channels.go`,
-`server/channels/app/server.go`
+`server/channels/api4/group.go`, `server/channels/app/keycloak_ldap.go`,
+`server/channels/app/channels.go`, `server/cmd/mattermost/main.go`
 
-Replaces the enterprise-only LDAP plugin with a built-in implementation that
-works on Team Edition.
+Provides SSO login and group synchronization on Team Edition **without** the
+enterprise LDAP plugin. There is **no built-in LDAP bind login** — user
+authentication is handled entirely by the OpenID Connect provider (§4);
+the code registered as the `Ldap` interface is a Keycloak-backed group
+provider, not an LDAP client.
 
-### 3a. LDAP login
+### 3a. Authentication (login)
 
-- Standard LDAP bind + search login without a license check.
-- `TestLdapConnection` merges the `BindPassword` from the saved server config
-  when the System Console sends an empty field (prevents false negatives during
-  connection tests).
-- `SyncLdap` schedules an LDAP sync job via the built-in job runner when the
-  enterprise plugin is absent.
+- Login/SSO is performed via **OpenID Connect** against Keycloak (see §4).
+  The generic OIDC provider is standards-based, so other OIDC identity
+  providers (e.g. **Authentik**, planned) work through the same code path.
+- `KeycloakLdap.DoLogin` and the other `LdapInterface` user-auth methods are
+  intentional stubs that return "handled by OIDC" — no LDAP bind is performed.
 
 ### 3b. Keycloak group sync
 
-- Fetches groups and their members from the **Keycloak Admin REST API**.
-- On server start, Keycloak groups are synced to Mattermost groups and
-  propagated to teams and channels.
-- `ldapGroupsAllowed()` helper: returns `true` when the LDAP provider is a
-  Keycloak provider (no license check), or when a valid license with
+- `KeycloakLdap` (`keycloak_ldap.go`) implements the `LdapInterface` group
+  methods using the **Keycloak Admin REST API**, reusing the OIDC client
+  ID/secret (`client_credentials` grant) — so the standard group-sync UI
+  (System Console → Groups, team/channel sync) works unmodified.
+- Groups and their members are fetched from Keycloak; on server start and on
+  group link, members are synced to Mattermost groups and propagated to teams
+  and channels.
+- `ldapGroupsAllowed()` helper: returns `true` when the LDAP provider is the
+  Keycloak provider (no license check), or when a valid license with the
   `LDAPGroups` feature is present.
-- Enterprise license checks are removed from the following API handlers:
+- Enterprise license checks are removed from the LDAP/group API handlers:
   `syncLdap`, `testLdap`, `testLdapConnection`, `testLdapDiagnostics`,
-  `migrateIDLdap`.
+  `migrateIDLdap`, and the group-syncable handlers in `api4/group.go`.
+
+> **Future — Authentik:** login already works via generic OIDC. Group sync is
+> currently Keycloak-Admin-API-specific; an Authentik provider would add an
+> analogous group-sync backend behind the same `LdapInterface`.
 
 ---
 
@@ -185,7 +195,7 @@ compiled with Go 1.26.4.
 
 Trigger: tag pushes matching `v*-patched` (prod) and `v*-patched-dev` (dev).
 
-- Prod tags → image tagged `:v11.8.1-patched` + `:latest`
+- Prod tags → image tagged `:v11.8.3-patched` + `:latest`
 - Dev tags → image tagged `:dev` + secondary tag
 
 BuildKit registry cache (`buildcache`) is used for the `webapp-builder` stage
@@ -235,3 +245,32 @@ appears when hovering a message and clicking the `⋯` button.
 - Disabled on mobile view (touch devices retain native context menu behaviour).
 - No new menu items are introduced; the menu reuses the full action set already
   present in the dot-menu (Reply, Forward, React, Save, Pin, Edit, Delete …).
+
+---
+
+## 12. Session Cookie Hardening (`SameSite=Lax`)
+
+**File:** `server/channels/app/login.go`
+
+Stock Mattermost leaves the `SameSite` attribute unset on the auth cookies
+(`MMAUTHTOKEN`, `MMUSERID`, `MMCSRF`), relying on the browser default. This
+patch sets `SameSite=Lax` **explicitly** on all three cookies when they are not
+embedded (iframe) cookies.
+
+- Reduces the risk of the auth cookie leaking in a cross-site context (a
+  session-hijacking / CSRF vector).
+- `Lax` still permits the top-level GET redirect used by the Keycloak/OIDC
+  login flow, so SSO is unaffected.
+- The existing embedded-cookie path (`SameSite=None` + `Secure`, for iframe
+  embedding) is preserved unchanged.
+
+`MMAUTHTOKEN` remains `HttpOnly` + `Secure` (on HTTPS) as before, so it is not
+readable from JavaScript.
+
+> **Operational session hardening** (recommended, configured in the System
+> Console / IdP rather than patched into the binary) is documented separately —
+> see the deployment security notes. In short: front bot/brute-force protection
+> and MFA belong at the Keycloak/Authentik IdP, while Mattermost should run with
+> a bounded `SessionLengthWebInHours`, a non-zero `SessionIdleTimeoutInMinutes`,
+> `TerminateSessionsOnPasswordChange=true`, and `ExtendSessionLengthWithActivity`
+> per the deployment's needs.

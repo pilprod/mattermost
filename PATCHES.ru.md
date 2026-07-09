@@ -1,8 +1,8 @@
 # Mattermost Team Edition — Кастомные патчи
 
 Документ описывает все изменения, внесённые поверх официального релиза
-Mattermost Team Edition (`v11.8.1`). Патченый образ публикуется как
-`mattermost:latest` / `mattermost:v11.8.1-patched`.
+Mattermost Team Edition (`v11.8.3`). Патченый образ публикуется как
+`mattermost:latest` / `mattermost:v11.8.3-patched`.
 
 ---
 
@@ -49,34 +49,47 @@ Mattermost Team Edition (`v11.8.1`). Патченый образ публику�
 
 ---
 
-## 3. Встроенная интеграция LDAP / Keycloak
+## 3. Аутентификация и синхронизация групп Keycloak / OIDC
 
 **Файлы:** `server/channels/app/ldap.go`, `server/channels/api4/ldap.go`,
-`server/channels/app/keycloak_ldap.go`, `server/channels/app/channels.go`,
-`server/channels/app/server.go`
+`server/channels/api4/group.go`, `server/channels/app/keycloak_ldap.go`,
+`server/channels/app/channels.go`, `server/cmd/mattermost/main.go`
 
-Заменяет корпоративный LDAP-плагин встроенной реализацией, работающей в
-Team Edition без лицензии.
+Обеспечивает SSO-вход и синхронизацию групп в Team Edition **без**
+корпоративного LDAP-плагина. Встроенного входа через LDAP-bind **нет** —
+аутентификация пользователей полностью выполняется через провайдер
+OpenID Connect (§4); код, зарегистрированный как интерфейс `Ldap`, — это
+провайдер групп на базе Keycloak, а не LDAP-клиент.
 
-### 3а. Вход через LDAP
+### 3а. Аутентификация (вход)
 
-- Стандартная LDAP-аутентификация (bind + поиск) без проверки лицензии.
-- `TestLdapConnection` дополняет поле `BindPassword` из сохранённой конфигурации
-  сервера, если системная консоль отправляет пустое значение (исключает ложные
-  ошибки при тесте соединения).
-- `SyncLdap` запускает задачу синхронизации через встроенный планировщик задач
-  при отсутствии корпоративного плагина.
+- Вход/SSO выполняется через **OpenID Connect** к Keycloak (см. §4).
+  Провайдер OIDC работает по стандарту, поэтому другие OIDC-провайдеры
+  (например, **Authentik**, планируется) работают через тот же путь.
+- `KeycloakLdap.DoLogin` и прочие методы аутентификации `LdapInterface` —
+  намеренные заглушки, возвращающие «обрабатывается OIDC»; LDAP-bind не
+  выполняется.
 
 ### 3б. Синхронизация групп Keycloak
 
-- Получает группы и их участников через **Keycloak Admin REST API**.
-- При старте сервера группы Keycloak синхронизируются с группами Mattermost
-  и распространяются на команды и каналы.
+- `KeycloakLdap` (`keycloak_ldap.go`) реализует групповые методы `LdapInterface`
+  через **Keycloak Admin REST API**, переиспользуя client ID/secret из OIDC
+  (grant `client_credentials`), поэтому штатный UI синхронизации групп
+  (Системная консоль → Группы, синхронизация команд/каналов) работает без
+  изменений.
+- Группы и их участники запрашиваются из Keycloak; при старте сервера и при
+  привязке группы участники синхронизируются с группами Mattermost и
+  распространяются на команды и каналы.
 - Вспомогательная функция `ldapGroupsAllowed()`: возвращает `true`, если
   провайдер является Keycloak (без проверки лицензии) или если есть лицензия с
   поддержкой `LDAPGroups`.
-- Проверки лицензии удалены из обработчиков API: `syncLdap`, `testLdap`,
-  `testLdapConnection`, `testLdapDiagnostics`, `migrateIDLdap`.
+- Проверки лицензии удалены из обработчиков LDAP/групп API: `syncLdap`,
+  `testLdap`, `testLdapConnection`, `testLdapDiagnostics`, `migrateIDLdap`,
+  а также из обработчиков group-syncable в `api4/group.go`.
+
+> **На будущее — Authentik:** вход уже работает через generic OIDC.
+> Синхронизация групп сейчас специфична для Keycloak Admin API; провайдер
+> Authentik добавит аналогичный бэкенд синхронизации за тем же `LdapInterface`.
 
 ---
 
@@ -234,3 +247,32 @@ Registry.
 - Отключено в мобильном режиме (сенсорные устройства сохраняют нативное поведение).
 - Новых пунктов меню не добавляется — используется существующий набор действий:
   Ответить, Переслать, Реакция, Сохранить, Закрепить, Редактировать, Удалить и др.
+
+---
+
+## 12. Усиление cookie сессии (`SameSite=Lax`)
+
+**Файл:** `server/channels/app/login.go`
+
+В стоковом Mattermost атрибут `SameSite` у auth-cookie (`MMAUTHTOKEN`,
+`MMUSERID`, `MMCSRF`) не задан — используется значение по умолчанию браузера.
+Патч **явно** выставляет `SameSite=Lax` для всех трёх cookie, когда они не
+встроенные (не iframe).
+
+- Снижает риск утечки auth-cookie в кросс-сайтовом контексте (вектор
+  перехвата сессии / CSRF).
+- `Lax` по-прежнему разрешает top-level GET-редирект, используемый при входе
+  через Keycloak/OIDC, поэтому SSO не ломается.
+- Существующий путь для встроенных cookie (`SameSite=None` + `Secure`, для
+  iframe) сохранён без изменений.
+
+`MMAUTHTOKEN` остаётся `HttpOnly` + `Secure` (по HTTPS), как и раньше, поэтому
+недоступен из JavaScript.
+
+> **Операционное усиление сессий** (рекомендуется настраивать в Системной
+> консоли / на стороне IdP, а не патчить в бинарь) вынесено отдельно — см.
+> заметки по безопасности развёртывания. Кратко: защита от ботов/перебора и MFA
+> должны быть на стороне Keycloak/Authentik, а Mattermost следует запускать с
+> ограниченным `SessionLengthWebInHours`, ненулевым
+> `SessionIdleTimeoutInMinutes`, `TerminateSessionsOnPasswordChange=true` и
+> `ExtendSessionLengthWithActivity` в зависимости от потребностей развёртывания.
