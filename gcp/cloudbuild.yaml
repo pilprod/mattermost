@@ -207,7 +207,7 @@ options:
 substitutions:
   _PIPELINE_NAME: 'mattermost image'
   _CLOUDBUILD_REGION: 'southamerica-east1'
-  _IMAGE_REPO: 'europe-west3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
+  _IMAGE_REPO: 'europe-west3-docker.pkg.dev/yourown-chat/docker/mattermost'
   _MATTERMOST_GITHUB_REPO: 'https://github.com/pilprod/mattermost'
   _MATTERMOST_GITHUB_PROJECT: 'pilprod/mattermost'
   _YOUROWN_CHAT_DEPLOY_TRIGGER_ID: 'yourown-chat-rke2-deploy'
