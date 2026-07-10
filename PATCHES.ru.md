@@ -156,7 +156,7 @@ OpenID Connect (§4); код, зарегистрированный как инт
 
 ## 8. Информация о сборке в диалоге «О Mattermost»
 
-**Файлы:** `Dockerfile.team-patch`, `gcp/cloudbuild.yaml`
+**Файлы:** `Dockerfile`, `gcp/cloudbuild.yaml`
 
 Стандартная Team Edition оставляет поля **Номер сборки**, **Хеш сборки**
 и **Дата сборки** пустыми. Патч вшивает их в бинарник через ldflags Go при
@@ -174,11 +174,11 @@ OpenID Connect (§4); код, зарегистрированный как инт
 
 ## 9. Docker-сборка и CI/CD
 
-**Файлы:** `Dockerfile.team-patch`, `gcp/cloudbuild.yaml`
+**Файлы:** `Dockerfile`, `gcp/cloudbuild.yaml`
 
 ### Dockerfile
 
-Многоэтапная сборка (`Dockerfile.team-patch`):
+Многоэтапная сборка (`Dockerfile`):
 
 | Этап | Базовый образ | Результат |
 |------|--------------|----------|
@@ -213,7 +213,7 @@ Registry.
 
 ## 10. Безопасность — исправление CVE в стандартной библиотеке Go
 
-**Файлы:** `Dockerfile.team-patch`, `server/go.mod`, `server/public/go.mod`,
+**Файлы:** `Dockerfile`, `server/go.mod`, `server/public/go.mod`,
 `server/.go-version`
 
 Тулчейн зафиксирован на **Go 1.26.4** (вышел 2026-06-02), который содержит

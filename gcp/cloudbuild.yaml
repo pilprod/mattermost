@@ -156,7 +156,7 @@ steps:
 
         docker buildx create --name cloudbuild --use || docker buildx use cloudbuild
         docker buildx build \
-          --file=Dockerfile.team-patch \
+          --file=Dockerfile \
           --cache-from=type=registry,ref="$${IMAGE_REPO}:buildcache" \
           --cache-to=type=registry,ref="$${IMAGE_REPO}:buildcache",mode=max \
           --no-cache-filter=server-builder,runtime \
@@ -221,7 +221,7 @@ options:
 substitutions:
   _PIPELINE_NAME: 'mattermost image'
   _CLOUDBUILD_REGION: 'southamerica-east1'
-  _IMAGE_REPO: 'southamerica-east1-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
+  _IMAGE_REPO: 'europe-west3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
   _MATTERMOST_GITHUB_REPO: 'https://github.com/pilprod/mattermost'
   _MATTERMOST_GITHUB_PROJECT: 'pilprod/mattermost'
   _DEV_IMAGE_TAG: 'dev'

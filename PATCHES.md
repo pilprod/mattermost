@@ -155,7 +155,7 @@ The minimum width (304 px on wide screens) is preserved for usability.
 
 ## 8. Build Info in "About Mattermost" Dialog
 
-**Files:** `Dockerfile.team-patch`, `gcp/cloudbuild.yaml`
+**Files:** `Dockerfile`, `gcp/cloudbuild.yaml`
 
 The standard Team Edition build ships with empty **Build Number**, **Build Hash**
 and **Build Date** fields in the "About Mattermost" dialog. This patch injects
@@ -173,11 +173,11 @@ Applied to both the `mattermost` and `mmctl` binaries.
 
 ## 9. Docker Build & CI/CD Pipeline
 
-**Files:** `Dockerfile.team-patch`, `gcp/cloudbuild.yaml`
+**Files:** `Dockerfile`, `gcp/cloudbuild.yaml`
 
 ### Dockerfile
 
-Multi-stage build (`Dockerfile.team-patch`):
+Multi-stage build (`Dockerfile`):
 
 | Stage | Base | Output |
 |-------|------|--------|
@@ -211,7 +211,7 @@ Artifact Registry image.
 
 ## 10. Security — Go Stdlib CVE Fixes
 
-**Files:** `Dockerfile.team-patch`, `server/go.mod`, `server/public/go.mod`,
+**Files:** `Dockerfile`, `server/go.mod`, `server/public/go.mod`,
 `server/.go-version`
 
 The toolchain is pinned to **Go 1.26.4** (released 2026-06-02), which ships

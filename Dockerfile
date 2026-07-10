@@ -2,7 +2,7 @@
 # Builds a patched Mattermost Team Edition image.
 # Context: repository root (where server/ and webapp/ live).
 # Usage:
-#   docker build -f Dockerfile.team-patch -t mattermost-team-patch:latest .
+#   docker build -t mattermost-team-patch:latest .
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 1 — webapp (JS/CSS assets)
