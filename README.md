@@ -3,7 +3,7 @@
 ## Docs
 If you need to install Docker Image:
 ```sh
-docker image inspect europe-west3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-pached-11.7
+docker image inspect europe-west3-docker.pkg.dev/yourown-chat/docker/mattermost:<tag_with_patched>
 ```
 
 ## How to build the binary locally
@@ -63,7 +63,7 @@ If you changed code and want to test it locally, build the full Docker image fro
 
 ```sh
 docker build \
-	-t europe-west3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-pached-11.7 \
+	-t europe-west3-docker.pkg.dev/yourown-chat/docker/mattermost:<tag_with_patched> \
 	.
 ```
 
@@ -77,7 +77,7 @@ docker compose up -d --force-recreate --no-deps mattermost-patched
 After push to `public-pached-11.7`, Cloud Build publishes this image:
 
 ```sh
-europe-west3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost:public-pached-11.7
+europe-west3-docker.pkg.dev/yourown-chat/docker/mattermost:<tag_with_patched>
 ```
 
 On the server, pull it and recreate only the patched Mattermost container:
