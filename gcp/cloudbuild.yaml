@@ -1,6 +1,6 @@
 # Cloud Build — Mattermost Team Edition (patched)
 #
-# Триггеры: теги v*-patched для latest и v*patched-dev для dev.
+# Триггеры: теги v*-patched для latest.
 # Cloud Build работает нативно на linux/amd64 — QEMU не нужен.
 # npm run build занимает ~8-12 мин (vs 35+ мин под QEMU на macOS).
 #
@@ -23,7 +23,6 @@ steps:
       - 'PIPELINE_SHORT_SHA=$SHORT_SHA'
       - 'PIPELINE_COMMIT_SHA=$COMMIT_SHA'
       - 'IMAGE_REPO=${_IMAGE_REPO}'
-      - 'DEV_IMAGE_TAG=${_DEV_IMAGE_TAG}'
     entrypoint: 'bash'
     args:
       - '-ceu'
@@ -33,15 +32,8 @@ steps:
 
         pipeline_started_at="$$(date -u +%s)"
         pipeline_tag="$${PIPELINE_TAG:-manual-or-untagged}"
-        pipeline_dev_image_tag="$${DEV_IMAGE_TAG:-dev}"
         pipeline_image_tag="$${PIPELINE_TAG:-manual}"
-        pipeline_secondary_image_tag=""
         pipeline_push_latest="true"
-        if [[ "$${pipeline_tag}" == *-dev ]]; then
-          pipeline_image_tag="$${pipeline_dev_image_tag}"
-          pipeline_secondary_image_tag="$${PIPELINE_TAG:-}"
-          pipeline_push_latest="false"
-        fi
         pipeline_github_repo="$${PIPELINE_GITHUB_REPO:-}"
         pipeline_project="$${pipeline_github_repo#https://github.com/}"
         pipeline_short_sha="$${PIPELINE_SHORT_SHA:-unknown-sha}"
@@ -85,9 +77,6 @@ steps:
           fi
 
           local registry_label_tag="$${pipeline_image_tag}"
-          if [[ -n "$${pipeline_secondary_image_tag}" ]]; then
-            registry_label_tag="$${pipeline_secondary_image_tag}"
-          fi
           local registry_label="$${registry_image_name}:$${registry_label_tag}"
           local registry_url="https://console.cloud.google.com/artifacts/docker/$${registry_project_id}/$${registry_location}/$${registry_repo_name}/$${registry_image_name}/$${pipeline_registry_image_digest}?project=$${registry_project_id}"
           CICD_IMAGE_LABEL="$${registry_label}" \
@@ -145,9 +134,6 @@ steps:
         emit_cicd_report "build" "started"
 
         tag_args=(--tag "$${IMAGE_REPO}:$${pipeline_image_tag}")
-        if [[ -n "$${pipeline_secondary_image_tag}" && "$${pipeline_secondary_image_tag}" != "$${pipeline_image_tag}" ]]; then
-          tag_args+=(--tag "$${IMAGE_REPO}:$${pipeline_secondary_image_tag}")
-        fi
         if [[ "$${pipeline_push_latest}" == "true" ]]; then
           tag_args+=(--tag "$${IMAGE_REPO}:latest")
         fi
@@ -192,7 +178,7 @@ steps:
 
       pipeline_tag="${PIPELINE_TAG:-}"
       case "${pipeline_tag}" in
-        v*-patched|v*patched-dev)
+        v*-patched)
           ;;
         *)
           echo "Skipping yourown-chat deploy trigger for tag: ${pipeline_tag:-manual-or-untagged}"
@@ -224,6 +210,5 @@ substitutions:
   _IMAGE_REPO: 'europe-west3-docker.pkg.dev/gcloud-production-1/mattermost/mattermost'
   _MATTERMOST_GITHUB_REPO: 'https://github.com/pilprod/mattermost'
   _MATTERMOST_GITHUB_PROJECT: 'pilprod/mattermost'
-  _DEV_IMAGE_TAG: 'dev'
   _YOUROWN_CHAT_DEPLOY_TRIGGER_ID: 'yourown-chat-rke2-deploy'
   _YOUROWN_CHAT_DEPLOY_BRANCH: 'main'
