@@ -30,7 +30,7 @@ ref without an archive and an explicit go-ahead.**
 
 ### Tags
 - **`v<version>-patched`** is the **only** release-tag pattern (e.g.
-  `v11.8.3-patched`). CI (`gcp/cloudbuild.yaml`) builds an image on any
+  `v11.8.3-patched`). CI builds an image on any
   `v*-patched` tag and publishes `<image>:<tag>` **and** `<image>:latest`.
 - **No `-dev` tags/builds.** The `v*-patched-dev` tag pattern and its Cloud Build
   path were removed on purpose — do not reintroduce them.
