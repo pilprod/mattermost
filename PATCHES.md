@@ -155,7 +155,7 @@ The minimum width (304 px on wide screens) is preserved for usability.
 
 ## 8. Build Info in "About Mattermost" Dialog
 
-**Files:** `Dockerfile`, `gcp/cloudbuild.yaml`
+**Files:** `Dockerfile`
 
 The standard Team Edition build ships with empty **Build Number**, **Build Hash**
 and **Build Date** fields in the "About Mattermost" dialog. This patch injects
@@ -173,7 +173,7 @@ Applied to both the `mattermost` and `mmctl` binaries.
 
 ## 9. Docker Build & CI/CD Pipeline
 
-**Files:** `Dockerfile`, `gcp/cloudbuild.yaml`
+**Files:** `Dockerfile`
 
 ### Dockerfile
 
@@ -191,21 +191,15 @@ all other files (plugins, i18n, config templates) come from the official image.
 Build assertions in `server-builder` fail loudly if either binary is not
 compiled with Go 1.26.4.
 
-### Cloud Build
+### CI / Cloud Build
 
-Trigger: tag pushes matching `v*-patched` (prod) and `v*-patched-dev` (dev).
+Image builds are triggered by pushing a `v*-patched` tag; the image is published
+to Artifact Registry tagged `:<tag>` **and** `:latest`.
 
-- Prod tags → image tagged `:v11.8.3-patched` + `:latest`
-- Dev tags → image tagged `:dev` + secondary tag
-
-BuildKit registry cache (`buildcache`) is used for the `webapp-builder` stage
-(npm build ~8-12 min). The `server-builder` and `runtime` stages always rebuild
-fresh (`--no-cache-filter=server-builder,runtime`) to prevent a stale Go binary
-from being served from cache.
-
-Build start/success/failure notifications are posted to a Mattermost channel
-via the API (token-based, not webhook) with links to the Cloud Build log and
-Artifact Registry image.
+The Cloud Build pipeline configuration is **managed outside this repository**
+(the former in-repo `gcp/cloudbuild.yaml` was removed). The build still uses the
+multi-stage `Dockerfile` above and injects the build-info ldflags from CI
+environment variables.
 
 ---
 

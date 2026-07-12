@@ -156,7 +156,7 @@ OpenID Connect (§4); код, зарегистрированный как инт
 
 ## 8. Информация о сборке в диалоге «О Mattermost»
 
-**Файлы:** `Dockerfile`, `gcp/cloudbuild.yaml`
+**Файлы:** `Dockerfile`
 
 Стандартная Team Edition оставляет поля **Номер сборки**, **Хеш сборки**
 и **Дата сборки** пустыми. Патч вшивает их в бинарник через ldflags Go при
@@ -174,7 +174,7 @@ OpenID Connect (§4); код, зарегистрированный как инт
 
 ## 9. Docker-сборка и CI/CD
 
-**Файлы:** `Dockerfile`, `gcp/cloudbuild.yaml`
+**Файлы:** `Dockerfile`
 
 ### Dockerfile
 
@@ -193,21 +193,15 @@ OpenID Connect (§4); код, зарегистрированный как инт
 Ассерты в `server-builder` явно прерывают сборку, если любой из бинарников не
 скомпилирован с Go 1.26.4.
 
-### Cloud Build
+### CI / Cloud Build
 
-Триггер: пуш тегов по маске `v*-patched` (прод) и `v*-patched-dev` (дев).
+Сборка образа запускается пушем тега `v*-patched`; образ публикуется в Artifact
+Registry с тегами `:<tag>` **и** `:latest`.
 
-- Прод-теги → образ с тегами `:v11.8.1-patched` + `:latest`
-- Дев-теги → образ с тегом `:dev` + дополнительный тег
-
-Кеш BuildKit registry (`buildcache`) используется для этапа `webapp-builder`
-(npm build ~8-12 мин). Этапы `server-builder` и `runtime` всегда пересобираются
-с нуля (`--no-cache-filter=server-builder,runtime`), чтобы кеш не подсунул
-устаревший бинарник Go.
-
-Уведомления о начале/успехе/ошибке сборки отправляются в канал Mattermost через
-API (токен-авторизация) со ссылками на лог Cloud Build и образ в Artifact
-Registry.
+Конфигурация пайплайна Cloud Build **вынесена за пределы этого репозитория**
+(прежний in-repo `gcp/cloudbuild.yaml` удалён). Сборка по-прежнему использует
+многоэтапный `Dockerfile` выше и вшивает build-info через ldflags из переменных
+окружения CI.
 
 ---
 
