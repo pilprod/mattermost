@@ -57,7 +57,9 @@ top of the auto-generated tree for those sections only: Overview
 (`DEPLOYMENT_GROUPS`/`DEPLOYMENT_ROOT_ORDER`), Administration Guide →
 Configure (`ADMIN_CONFIGURE_GROUPS`/`ADMIN_CONFIGURE_ORDER`),
 Administration Guide → Manage (`ADMIN_MANAGE_GROUPS`/`ADMIN_MANAGE_ORDER`),
-and Integrations Guide (`INTEGRATIONS_GROUPS`/`INTEGRATIONS_ROOT_ORDER`).
+Administration Guide → Onboard (`ADMIN_ONBOARD_GROUPS`/`ADMIN_ONBOARD_ORDER`),
+Administration Guide → Scale (`ADMIN_SCALE_GROUPS`/`ADMIN_SCALE_ORDER`), and
+Integrations Guide (`INTEGRATIONS_GROUPS`/`INTEGRATIONS_ROOT_ORDER`).
 
 The override only changes how the sidebar renders — files stay flat on
 disk at their existing paths, so URLs don't move. Each override is a pair
