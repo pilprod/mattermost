@@ -98,16 +98,15 @@ export function getSourceKind(field: PropertyField): SourceKind {
 
 type ClassificationAwareCellProps = {
     field: PropertyField;
-    groupId: string;
-    classificationMarkingsReachable: boolean;
+    isClassificationRow: boolean;
 };
 
-function SourceCell({field, groupId, classificationMarkingsReachable}: ClassificationAwareCellProps) {
+function SourceCell({field, isClassificationRow}: ClassificationAwareCellProps) {
     const pluginId = field.attrs?.source_plugin_id as string | undefined;
     const pluginDisplayName = useSelector((state: GlobalState) => getPluginDisplayName(state, pluginId));
 
     let content: React.ReactNode;
-    if (isClassificationMarkingsField(field, groupId) && classificationMarkingsReachable) {
+    if (isClassificationRow) {
         content = <FormattedMessage {...sourceLabels.classificationMarkings}/>;
     } else {
         const kind = getSourceKind(field);
@@ -151,9 +150,7 @@ function classificationSubtitleId(fieldId: string): string {
     return `global-attribute-classification-subtitle-${fieldId}`;
 }
 
-function AttributeCell({field, groupId, classificationMarkingsReachable}: ClassificationAwareCellProps) {
-    const isClassificationRow = isClassificationMarkingsField(field, groupId) && classificationMarkingsReachable;
-
+function AttributeCell({field, isClassificationRow}: ClassificationAwareCellProps) {
     return (
         <span className='GlobalAttributesTable__attribute'>
             <span
@@ -175,34 +172,30 @@ function AttributeCell({field, groupId, classificationMarkingsReachable}: Classi
     );
 }
 
-function ActionsCell({field, groupId, classificationMarkingsReachable, isMobileView}: ClassificationAwareCellProps & {isMobileView: boolean}) {
+function ActionsCell({field, isClassificationRow, isMobileView}: ClassificationAwareCellProps & {isMobileView: boolean}) {
     const {formatMessage} = useIntl();
     const menuId = `global-attribute-actions-${field.id}`;
 
-    if (isClassificationMarkingsField(field, groupId) && classificationMarkingsReachable) {
+    if (isClassificationRow) {
         const classificationLinkLabel = formatMessage(actionsLabels.classificationLink);
-        const link = (
-            <Link
-                to={CLASSIFICATION_MARKINGS_ADMIN_URL}
-                className='GlobalAttributesTable__classificationLink'
-                aria-label={classificationLinkLabel}
-                aria-describedby={classificationSubtitleId(field.id)}
-                data-testid={`global-attribute-classification-link-${field.id}`}
-            >
-                <ChevronRightIcon
-                    size={18}
-                    aria-hidden={true}
-                />
-            </Link>
-        );
-
-        if (isMobileView) {
-            return link;
-        }
 
         return (
-            <WithTooltip title={classificationLinkLabel}>
-                {link}
+            <WithTooltip
+                title={classificationLinkLabel}
+                disabled={isMobileView}
+            >
+                <Link
+                    to={CLASSIFICATION_MARKINGS_ADMIN_URL}
+                    className='GlobalAttributesTable__link--classification'
+                    aria-label={classificationLinkLabel}
+                    aria-describedby={classificationSubtitleId(field.id)}
+                    data-testid={`global-attribute-classification-link-${field.id}`}
+                >
+                    <ChevronRightIcon
+                        size={18}
+                        aria-hidden={true}
+                    />
+                </Link>
             </WithTooltip>
         );
     }
@@ -312,6 +305,9 @@ export default function GlobalAttributesTable() {
     );
 
     const columns = useMemo<Array<ColumnDef<PropertyField, any>>>(() => {
+        const isClassificationRow = (field: PropertyField) =>
+            isClassificationMarkingsField(field, groupId) && classificationMarkingsReachable;
+
         return [
             columnHelper.accessor((row) => getDisplayName(row), {
                 id: 'attribute',
@@ -319,8 +315,7 @@ export default function GlobalAttributesTable() {
                 cell: ({row}) => (
                     <AttributeCell
                         field={row.original}
-                        groupId={groupId}
-                        classificationMarkingsReachable={classificationMarkingsReachable}
+                        isClassificationRow={isClassificationRow(row.original)}
                     />
                 ),
                 enableSorting: false,
@@ -352,8 +347,7 @@ export default function GlobalAttributesTable() {
                 cell: ({row}) => (
                     <SourceCell
                         field={row.original}
-                        groupId={groupId}
-                        classificationMarkingsReachable={classificationMarkingsReachable}
+                        isClassificationRow={isClassificationRow(row.original)}
                     />
                 ),
                 enableHiding: false,
@@ -380,8 +374,7 @@ export default function GlobalAttributesTable() {
                 cell: ({row}) => (
                     <ActionsCell
                         field={row.original}
-                        groupId={groupId}
-                        classificationMarkingsReachable={classificationMarkingsReachable}
+                        isClassificationRow={isClassificationRow(row.original)}
                         isMobileView={isMobileView}
                     />
                 ),
