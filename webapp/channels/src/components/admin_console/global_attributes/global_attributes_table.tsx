@@ -96,20 +96,30 @@ export function getSourceKind(field: PropertyField): SourceKind {
     return 'managed';
 }
 
-function SourceCell({field}: {field: PropertyField}) {
-    const kind = getSourceKind(field);
+type ClassificationAwareCellProps = {
+    field: PropertyField;
+    groupId: string;
+    classificationMarkingsReachable: boolean;
+};
+
+function SourceCell({field, groupId, classificationMarkingsReachable}: ClassificationAwareCellProps) {
     const pluginId = field.attrs?.source_plugin_id as string | undefined;
     const pluginDisplayName = useSelector((state: GlobalState) => getPluginDisplayName(state, pluginId));
 
     let content: React.ReactNode;
-    if (kind === 'plugin') {
-        content = pluginDisplayName;
-    } else if (kind === 'ldap') {
-        content = <FormattedMessage {...sourceLabels.ldap}/>;
-    } else if (kind === 'saml') {
-        content = <FormattedMessage {...sourceLabels.saml}/>;
+    if (isClassificationMarkingsField(field, groupId) && classificationMarkingsReachable) {
+        content = <FormattedMessage {...sourceLabels.classificationMarkings}/>;
     } else {
-        content = <FormattedMessage {...sourceLabels.managed}/>;
+        const kind = getSourceKind(field);
+        if (kind === 'plugin') {
+            content = pluginDisplayName;
+        } else if (kind === 'ldap') {
+            content = <FormattedMessage {...sourceLabels.ldap}/>;
+        } else if (kind === 'saml') {
+            content = <FormattedMessage {...sourceLabels.saml}/>;
+        } else {
+            content = <FormattedMessage {...sourceLabels.managed}/>;
+        }
     }
 
     return (
@@ -136,12 +146,6 @@ function OptionsCell({field}: {field: PropertyField}) {
         />
     );
 }
-
-type ClassificationAwareCellProps = {
-    field: PropertyField;
-    groupId: string;
-    classificationMarkingsReachable: boolean;
-};
 
 function classificationSubtitleId(fieldId: string): string {
     return `global-attribute-classification-subtitle-${fieldId}`;
@@ -345,7 +349,13 @@ export default function GlobalAttributesTable() {
             columnHelper.display({
                 id: 'source',
                 header: () => <FormattedMessage {...messages.source}/>,
-                cell: ({row}) => <SourceCell field={row.original}/>,
+                cell: ({row}) => (
+                    <SourceCell
+                        field={row.original}
+                        groupId={groupId}
+                        classificationMarkingsReachable={classificationMarkingsReachable}
+                    />
+                ),
                 enableHiding: false,
             }),
             columnHelper.display({
@@ -440,7 +450,7 @@ const messages = defineMessages({
     loadError: {id: 'admin.global_attributes.table.load_error', defaultMessage: 'There was an error while loading attributes.'},
     classificationSubtitle: {
         id: 'admin.global_attributes.table.attribute.classification_subtitle',
-        defaultMessage: 'Read-only — open the markings page',
+        defaultMessage: 'Read-only',
     },
 });
 
@@ -456,6 +466,10 @@ const sourceLabels = defineMessages({
     ldap: {id: 'admin.global_attributes.table.source.ldap', defaultMessage: 'AD/LDAP'},
     saml: {id: 'admin.global_attributes.table.source.saml', defaultMessage: 'SAML'},
     managed: {id: 'admin.global_attributes.table.source.managed', defaultMessage: 'Managed here'},
+    classificationMarkings: {
+        id: 'admin.global_attributes.table.source.classification_markings',
+        defaultMessage: 'Classification Markings',
+    },
 });
 
 const optionsLabels = defineMessages({
