@@ -70,7 +70,7 @@ RUN go version /out/mmctl | grep -q 'go1\.26\.4' \
 # The official image already has the correct directory layout, plugins,
 # i18n files, etc.  We only replace the binary and the webapp assets.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM mattermost/mattermost-team-edition:11.8 AS runtime
+FROM mattermost/mattermost-team-edition:11.9 AS runtime
 
 USER root
 
