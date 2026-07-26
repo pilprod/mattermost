@@ -22,9 +22,10 @@ RUN npm run build
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — server binary (Go)
 # ─────────────────────────────────────────────────────────────────────────────
-# Pinned to 1.26.4: ships the patched stdlib for CVE-2026-42504 (mime),
-# CVE-2026-27145 (crypto/x509) and CVE-2026-42507 (net/textproto).
-FROM golang:1.26.4-alpine AS server-builder
+# Pinned to 1.26.5: ships the patched stdlib for CVE-2026-39822 and
+# CVE-2026-42505, on top of the earlier CVE-2026-42504 (mime),
+# CVE-2026-27145 (crypto/x509) and CVE-2026-42507 (net/textproto) fixes.
+FROM golang:1.26.5-alpine AS server-builder
 
 WORKDIR /src/server
 COPY server/ .
@@ -59,10 +60,10 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
         -o /out/mmctl ./cmd/mmctl
 
 # Fail the build if either binary was not compiled with the patched toolchain.
-RUN go version /out/mattermost | grep -q 'go1\.26\.4' \
-    || (echo "FATAL: mattermost not built with Go 1.26.4" && exit 1)
-RUN go version /out/mmctl | grep -q 'go1\.26\.4' \
-    || (echo "FATAL: mmctl not built with Go 1.26.4" && exit 1)
+RUN go version /out/mattermost | grep -q 'go1\.26\.5' \
+    || (echo "FATAL: mattermost not built with Go 1.26.5" && exit 1)
+RUN go version /out/mmctl | grep -q 'go1\.26\.5' \
+    || (echo "FATAL: mmctl not built with Go 1.26.5" && exit 1)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ FROM mattermost/mattermost-team-edition:11.9 AS runtime
 
 USER root
 
-# Replace Go binaries — both compiled with go1.26.4 to clear the stdlib CVEs.
+# Replace Go binaries — both compiled with go1.26.5 to clear the stdlib CVEs.
 COPY --from=server-builder --chown=2000:2000 \
     /out/mattermost /mattermost/bin/mattermost
 COPY --from=server-builder --chown=2000:2000 \
