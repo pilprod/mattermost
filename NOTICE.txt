@@ -2,6 +2,14 @@ Mattermost Server
 
 ©2015-present Mattermost,Inc. All Rights Reserved. See LICENSE for license information.
 
+YourOwn.Chat Server modifications
+
+Copyright © 2026 YourOwn.Chat contributors.
+
+This distribution is a modified version of Mattermost Team Edition and is not
+produced, sponsored, or endorsed by Mattermost, Inc. See PRODUCT-NOTICE.md for
+the fork modification and network source-offer notice.
+
 NOTICES:
 --------
 

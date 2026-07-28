@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.vscode
+
+**/node_modules
+**/.DS_Store
+
+# YourOwn.Chat product builds must not receive Mattermost source-available
+# packages in their Docker build context.
+server/enterprise

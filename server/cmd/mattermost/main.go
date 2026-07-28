@@ -13,9 +13,6 @@ import (
 	_ "github.com/mattermost/mattermost/server/v8/channels/app/oauthproviders/gitlab"
 	// Generic OpenID Connect provider (enables MM_OPENIDSETTINGS_* in Team/Free Edition)
 	_ "github.com/mattermost/mattermost/server/v8/channels/app/oauthproviders/openid"
-
-	// Enterprise Imports
-	_ "github.com/mattermost/mattermost/server/v8/enterprise"
 )
 
 func main() {

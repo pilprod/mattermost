@@ -1,4 +1,16 @@
-# [![Mattermost logo](https://user-images.githubusercontent.com/7205829/137170381-fe86eef0-bccc-4fdd-8e92-b258884ebdd7.png)](https://mattermost.com)
+# YourOwn.Chat Server
+
+> Product compliance draft based on the public Mattermost Team Edition
+> codebase. This branch is not yet a production product release.
+
+YourOwn.Chat Server is the public AGPL-covered collaboration server. Closed
+clients, agent services, the control plane, and other commercial components
+must remain separately deployed programs communicating through documented
+network APIs.
+
+The engineering license boundary, source-offer requirements, build profile,
+branding policy, and release checklist are documented in
+[docs/product-compliance.md](docs/product-compliance.md).
 
 ## Docs
 If you need to install Docker Image:
@@ -63,6 +75,7 @@ If you changed code and want to test it locally, build the full Docker image fro
 
 ```sh
 docker build \
+	--build-arg SOURCE_URL=https://github.com/pilprod/mattermost/tree/<exact-commit> \
 	-t europe-west3-docker.pkg.dev/yourown-chat/docker/mattermost:<tag_with_patched> \
 	.
 ```
@@ -94,50 +107,27 @@ Quick check after restart:
 docker compose logs -f --tail=100 mattermost-patched
 ```
 
-## Mattermost Licensing Notes
+## Licensing and source availability
 
-Mattermost uses a hybrid licensing model.
+This repository preserves the upstream Mattermost licenses, copyright notices,
+and third-party attributions in [LICENSE.txt](LICENSE.txt) and
+[NOTICE.txt](NOTICE.txt). Fork-specific attribution is in
+[PRODUCT-NOTICE.md](PRODUCT-NOTICE.md).
 
-Official compiled Mattermost binaries provided by Mattermost, Inc. can be used under the terms described in the MIT-COMPILED-LICENSE.
+The modified server is delivered under AGPLv3. Every network deployment must
+prominently offer its users the exact Corresponding Source. Configure the
+application's About link to the immutable source commit:
 
-However, modifications to the Mattermost source code may fall under the GNU AGPL v3 license obligations.
+```text
+MM_SUPPORTSETTINGS_ABOUTLINK=https://github.com/pilprod/mattermost/tree/<exact-commit>
+```
 
-AGPL obligations may apply if you:
+This repository does not claim ownership of Mattermost trademarks. Mattermost
+and its related marks belong to Mattermost, Inc. YourOwn.Chat Server is not
+produced, sponsored, or endorsed by Mattermost, Inc.
 
-- modify Mattermost source code;
-- build and distribute a modified Mattermost binary;
-- provide a modified Mattermost-based network service;
-- or create a derivative work based on Mattermost core components.
+Official references:
 
-In such cases, the corresponding modified source code may need to be made available under AGPLv3 terms.
-
-This repository does not claim ownership of Mattermost trademarks.  
-“Mattermost” and related marks belong to Mattermost, Inc.
-
-For official licensing details, see:
-- https://mattermost.com/licensing/
-- https://mattermost.com/trademark-standards-of-use/
-
-## Примечание по лицензированию Mattermost
-
-Mattermost использует гибридную модель лицензирования.
-
-Официальные собранные бинарные версии Mattermost, распространяемые Mattermost, Inc., могут использоваться в соответствии с условиями MIT-COMPILED-LICENSE.
-
-Однако модификация исходного кода Mattermost может подпадать под требования лицензии GNU AGPL v3.
-
-Требования AGPL могут применяться, если вы:
-
-- модифицируете исходный код Mattermost;
-- собираете и распространяете изменённую версию Mattermost;
-- предоставляете пользователям сетевой сервис на основе модифицированного Mattermost;
-- создаёте производную работу на основе core-компонентов Mattermost.
-
-В таких случаях исходный код модификаций может подлежать обязательному раскрытию в соответствии с условиями AGPLv3.
-
-Данный репозиторий не заявляет никаких прав на товарные знаки Mattermost.  
-“Mattermost” и связанные обозначения принадлежат Mattermost, Inc.
-
-Официальная информация:
-- https://mattermost.com/licensing/
+- https://github.com/mattermost/mattermost/blob/master/LICENSE.txt
+- https://www.gnu.org/licenses/agpl-3.0.html
 - https://mattermost.com/trademark-standards-of-use/
