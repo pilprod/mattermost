@@ -114,12 +114,13 @@ and third-party attributions in [LICENSE.txt](LICENSE.txt) and
 [NOTICE.txt](NOTICE.txt). Fork-specific attribution is in
 [PRODUCT-NOTICE.md](PRODUCT-NOTICE.md).
 
-The modified server is delivered under AGPLv3. Every network deployment must
-prominently offer its users the exact Corresponding Source. Configure the
-application's About link to the immutable source commit:
+The modified server is delivered under AGPLv3. Every network deployment
+prominently offers its users the exact Corresponding Source through the
+**Source Code** link in the About dialog. Build the image with the immutable
+source commit:
 
 ```text
-MM_SUPPORTSETTINGS_ABOUTLINK=https://github.com/pilprod/mattermost/tree/<exact-commit>
+--build-arg SOURCE_URL=https://github.com/pilprod/mattermost/tree/<exact-commit>
 ```
 
 This repository does not claim ownership of Mattermost trademarks. Mattermost

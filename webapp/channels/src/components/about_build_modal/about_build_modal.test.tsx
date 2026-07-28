@@ -57,6 +57,7 @@ describe('components/AboutBuildModal', () => {
             SQLDriverName: 'Postgres',
             BuildHash: 'abcdef1234567890',
             BuildHashEnterprise: '0123456789abcdef',
+            BuildSourceURL: 'https://github.com/pilprod/mattermost/tree/abcdef1234567890',
             BuildDate: '21 January 2017',
             TermsOfServiceLink: AboutLinks.TERMS_OF_SERVICE,
             PrivacyPolicyLink: AboutLinks.PRIVACY_POLICY,
@@ -81,6 +82,7 @@ describe('components/AboutBuildModal', () => {
         expect(screen.getByText('Modern communication from behind your firewall.')).toBeInTheDocument();
         expect(screen.getByRole('link', {name: 'mattermost.com'})).toHaveAttribute('href', 'https://mattermost.com/?utm_source=mattermost&utm_medium=in-product&utm_content=about_build_modal&uid=&sid=&edition=enterprise&server_version=3.6.0');
         expect(screen.getByText('EE Build Hash: 0123456789abcdef', {exact: false})).toBeInTheDocument();
+        expect(screen.getByRole('link', {name: 'Source Code'})).toHaveAttribute('href', config.BuildSourceURL);
         expect(screen.queryByText('Hostname: mock.localhost', {exact: false})).toBeInTheDocument();
 
         expect(screen.getByRole('link', {name: 'server'})).toHaveAttribute('href', 'https://github.com/mattermost/mattermost-server/blob/master/NOTICE.txt');

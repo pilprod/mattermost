@@ -17,7 +17,6 @@ import (
 	st "github.com/mattermost/mattermost/server/v8/channels/store/storetest"
 	"github.com/mattermost/mattermost/server/v8/cmd/mmctl/client"
 	"github.com/mattermost/mattermost/server/v8/cmd/mmctl/printer"
-	"github.com/mattermost/mattermost/server/v8/enterprise/message_export/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -618,13 +617,13 @@ func (s *MmctlE2ETestSuite) TestComplianceExportMmctlJobStartTimeE2E() {
 		regularStartTime := now - 10000
 		regularEndTime := now - 5000
 		regularJob := s.runJobForTest(map[string]string{
-			shared.JobDataBatchStartTime: strconv.FormatInt(regularStartTime, 10),
-			shared.JobDataJobEndTime:     strconv.FormatInt(regularEndTime, 10),
+			complianceJobDataBatchStartTime: strconv.FormatInt(regularStartTime, 10),
+			complianceJobDataJobEndTime:     strconv.FormatInt(regularEndTime, 10),
 		})
 
 		s.Require().Equal(model.JobStatusSuccess, regularJob.Status, "Regular job should complete successfully")
-		s.Require().NotEmpty(regularJob.Data[shared.JobDataBatchStartTime], "Regular job should have a batch start time")
-		regularJobBatchStartTime := regularJob.Data[shared.JobDataBatchStartTime]
+		s.Require().NotEmpty(regularJob.Data[complianceJobDataBatchStartTime], "Regular job should have a batch start time")
+		regularJobBatchStartTime := regularJob.Data[complianceJobDataBatchStartTime]
 
 		// Run an mmctl-initiated export job
 		cmd := &cobra.Command{}
@@ -641,14 +640,14 @@ func (s *MmctlE2ETestSuite) TestComplianceExportMmctlJobStartTimeE2E() {
 
 		// The most recent job should be the mmctl job
 		mmctlJob := jobs[0]
-		s.Require().Equal("mmctl", mmctlJob.Data[shared.JobDataInitiatedBy])
+		s.Require().Equal("mmctl", mmctlJob.Data[complianceJobDataInitiatedBy])
 
 		// Wait for the mmctl job to complete
 		s.checkJobForStatus(mmctlJob.Id, model.JobStatusSuccess)
 		mmctlJob = s.getMostRecentJobWithId(mmctlJob.Id)
 
 		// The job_start_time should match the batch_start_time from the previous regular job
-		s.Require().Equal(regularJobBatchStartTime, mmctlJob.Data[shared.JobDataJobStartTime],
+		s.Require().Equal(regularJobBatchStartTime, mmctlJob.Data[complianceJobDataJobStartTime],
 			"mmctl job should use batch_start_time from previous regular job as its job_start_time")
 
 		// Clean up jobs
@@ -674,13 +673,13 @@ func (s *MmctlE2ETestSuite) TestComplianceExportMmctlJobStartTimeE2E() {
 		regularStartTime := now - 10000
 		regularEndTime := now - 5000
 		regularJob := s.runJobForTest(map[string]string{
-			shared.JobDataBatchStartTime: strconv.FormatInt(regularStartTime, 10),
-			shared.JobDataJobEndTime:     strconv.FormatInt(regularEndTime, 10),
+			complianceJobDataBatchStartTime: strconv.FormatInt(regularStartTime, 10),
+			complianceJobDataJobEndTime:     strconv.FormatInt(regularEndTime, 10),
 		})
 
 		s.Require().Equal(model.JobStatusSuccess, regularJob.Status, "Regular job should complete successfully")
-		s.Require().NotEmpty(regularJob.Data[shared.JobDataBatchStartTime], "Regular job should have a batch start time")
-		regularJobBatchStartTime := regularJob.Data[shared.JobDataBatchStartTime]
+		s.Require().NotEmpty(regularJob.Data[complianceJobDataBatchStartTime], "Regular job should have a batch start time")
+		regularJobBatchStartTime := regularJob.Data[complianceJobDataBatchStartTime]
 
 		// Run an mmctl-initiated export job with an explicit start time (different from the regular job)
 		cmd := &cobra.Command{}
@@ -697,14 +696,14 @@ func (s *MmctlE2ETestSuite) TestComplianceExportMmctlJobStartTimeE2E() {
 
 		// The most recent job should be the mmctl job
 		mmctlJob1 := jobs[0]
-		s.Require().Equal("mmctl", mmctlJob1.Data[shared.JobDataInitiatedBy])
+		s.Require().Equal("mmctl", mmctlJob1.Data[complianceJobDataInitiatedBy])
 
 		// Wait for the mmctl job to complete
 		s.checkJobForStatus(mmctlJob1.Id, model.JobStatusSuccess)
 		mmctlJob1 = s.getMostRecentJobWithId(mmctlJob1.Id)
 
 		// Verify this job has a different batch_start_time than the regular job
-		s.Require().NotEqual(regularJobBatchStartTime, mmctlJob1.Data[shared.JobDataBatchStartTime],
+		s.Require().NotEqual(regularJobBatchStartTime, mmctlJob1.Data[complianceJobDataBatchStartTime],
 			"First mmctl job should have a different batch_start_time than regular job")
 
 		// Run a second mmctl-initiated export job WITHOUT a specified start time
@@ -722,7 +721,7 @@ func (s *MmctlE2ETestSuite) TestComplianceExportMmctlJobStartTimeE2E() {
 
 		// The most recent job should be the second mmctl job
 		mmctlJob2 := jobs[0]
-		s.Require().Equal("mmctl", mmctlJob2.Data[shared.JobDataInitiatedBy])
+		s.Require().Equal("mmctl", mmctlJob2.Data[complianceJobDataInitiatedBy])
 
 		// Wait for the second mmctl job to complete
 		s.checkJobForStatus(mmctlJob2.Id, model.JobStatusSuccess)
@@ -730,9 +729,9 @@ func (s *MmctlE2ETestSuite) TestComplianceExportMmctlJobStartTimeE2E() {
 
 		// The job_start_time of the second mmctl job should match the batch_start_time from the regular job,
 		// not from the mmctl job that ran in between
-		s.Require().Equal(regularJobBatchStartTime, mmctlJob2.Data[shared.JobDataJobStartTime],
+		s.Require().Equal(regularJobBatchStartTime, mmctlJob2.Data[complianceJobDataJobStartTime],
 			"Second mmctl job should use batch_start_time from previous regular job as its job_start_time, not from previous mmctl job")
-		s.Require().NotEqual(mmctlJob1.Data[shared.JobDataBatchStartTime], mmctlJob2.Data[shared.JobDataJobStartTime],
+		s.Require().NotEqual(mmctlJob1.Data[complianceJobDataBatchStartTime], mmctlJob2.Data[complianceJobDataJobStartTime],
 			"Second mmctl job should not use batch_start_time from previous mmctl job as its job_start_time")
 
 		// Clean up jobs

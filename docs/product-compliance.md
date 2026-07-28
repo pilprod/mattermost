@@ -12,7 +12,7 @@ product from the public Mattermost Team Edition codebase.
 | Modified web application shipped by the server | Public source | Preserve the applicable upstream Apache-2.0 and AGPL notices |
 | Closed desktop and mobile clients | Separate repositories and artifacts | Proprietary, communicating only through documented network APIs |
 | Agent, Temporal, billing, policy, DLP, and organization services | Separate processes and deployables | May be proprietary when they remain independent programs |
-| Mattermost `server/enterprise` source-available packages | Not included in a product binary | Upstream license only; do not modify, copy, or enable for the product |
+| Mattermost `server/enterprise` source-available packages | Removed from the product branch and build context | Upstream license only; do not copy or reintroduce |
 | Private `mattermost/enterprise` sibling repository | Unavailable and forbidden | Must never be present in a product build environment |
 
 The label "Enterprise" does not decide ownership or licensing. Origin and
@@ -32,34 +32,34 @@ The product image is built only by the repository-root `Dockerfile`.
   placeholder package.
 - `model.BuildEnterpriseReady` must be `false`.
 - `model.BuildHashEnterprise` must be `none`.
+- `model.BuildSourceURL` and the OCI source label must identify the same
+  immutable Corresponding Source.
 - The final image must contain `LICENSE.txt`, `NOTICE.txt`, and
   `PRODUCT-NOTICE.md`.
 - The final image must set `org.opencontainers.image.source` to the exact
   public commit or immutable source archive used for that image.
 
-The upstream `server/enterprise` directory remains in upstream history but is
-excluded from the product Docker context. The product server dependency graph
-must not import packages from it. The current product image intentionally keeps
-the unmodified `mmctl` supplied by the official Team Edition runtime image:
-building `mmctl` from this source tree still imports a source-available
-compliance-export helper. Before a standalone public `mmctl` is shipped, remove
-that command/dependency in a dedicated change.
-
-Before a public product repository is cut, remove unused source-available files
-from the repository after confirming that Team Edition commands and tests no
-longer import their shared helpers.
+The upstream `server/enterprise` directory exists in Mattermost history but is
+deleted from the product branch and excluded defensively from the Docker
+context. The product server and `mmctl` dependency graphs must not import
+packages from it. Public API payload keys needed by the `mmctl
+compliance-export` client are defined in the client rather than imported from
+the source-available server implementation. Enterprise-only tests and build
+targets are removed or fail closed.
 
 ## Network source offer
 
 AGPL section 13 requires a deployed modified server to prominently offer
 network users the Corresponding Source for the version they are using. Every
-environment must therefore set:
+image build must therefore pass:
 
 ```text
-MM_SUPPORTSETTINGS_ABOUTLINK=https://github.com/<owner>/<public-server-repo>/tree/<exact-commit>
+--build-arg SOURCE_URL=https://github.com/<owner>/<public-server-repo>/tree/<exact-commit>
 ```
 
-The link must resolve without authentication and include:
+The URL is compiled into the server, exposed in client configuration, displayed
+as **Source Code** in the About dialog, and copied to the OCI source label. The
+link must resolve without authentication and include:
 
 - the exact server and webapp source used by the deployment;
 - build scripts and dependency manifests needed to produce the binaries;

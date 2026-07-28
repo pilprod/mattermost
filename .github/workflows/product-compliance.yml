@@ -11,6 +11,7 @@ on:
       - docs/product-compliance.md
       - scripts/verify-product-compliance.sh
       - server/**
+      - webapp/**
   push:
     branches:
       - codex/product-compliance-draft

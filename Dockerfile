@@ -39,6 +39,7 @@ COPY server/ .
 ARG BUILD_NUMBER=0
 ARG BUILD_HASH=dev
 ARG BUILD_DATE=
+ARG SOURCE_URL
 
 # go.work wires the main module (.) to the embedded public sub-module (./public).
 # This mirrors what `make setup-go-work` does for Team Edition (no enterprise).
@@ -46,20 +47,28 @@ RUN go work init && go work use . && go work use ./public
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    test -n "$SOURCE_URL" || \
+        (echo "FATAL: SOURCE_URL must identify the immutable Corresponding Source" && exit 1); \
     MODEL=github.com/mattermost/mattermost/server/public/model; \
     LDFLAGS="-s -w"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildNumber=$BUILD_NUMBER"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildHash=$BUILD_HASH"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildHashEnterprise=none"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildEnterpriseReady=false"; \
+    LDFLAGS="$LDFLAGS -X $MODEL.BuildSourceURL=$SOURCE_URL"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildDate=$BUILD_DATE"; \
     CGO_ENABLED=0 GOOS=linux \
     go build -buildvcs=false -ldflags="$LDFLAGS" \
-        -o /out/mattermost ./cmd/mattermost
+        -o /out/mattermost ./cmd/mattermost && \
+    CGO_ENABLED=0 GOOS=linux \
+    go build -buildvcs=false -ldflags="$LDFLAGS" \
+        -o /out/mmctl ./cmd/mmctl
 
-# Fail the build if the server was not compiled with the patched toolchain.
+# Fail the build if either binary was not compiled with the patched toolchain.
 RUN go version /out/mattermost | grep -q 'go1\.26\.5' \
     || (echo "FATAL: mattermost not built with Go 1.26.5" && exit 1)
+RUN go version /out/mmctl | grep -q 'go1\.26\.5' \
+    || (echo "FATAL: mmctl not built with Go 1.26.5" && exit 1)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +78,7 @@ RUN go version /out/mattermost | grep -q 'go1\.26\.5' \
 # ─────────────────────────────────────────────────────────────────────────────
 FROM mattermost/mattermost-team-edition:11.9 AS runtime
 
-ARG SOURCE_URL=https://github.com/pilprod/mattermost
+ARG SOURCE_URL
 
 LABEL org.opencontainers.image.title="YourOwn.Chat Server" \
       org.opencontainers.image.description="AGPL collaboration server based on Mattermost Team Edition" \
@@ -78,11 +87,11 @@ LABEL org.opencontainers.image.title="YourOwn.Chat Server" \
 
 USER root
 
-# Replace the server binary. The official Team Edition mmctl remains in the
-# runtime until its source-available compliance-export dependency is removed
-# in a separate public-only change.
+# Replace both public binaries.
 COPY --from=server-builder --chown=2000:2000 \
     /out/mattermost /mattermost/bin/mattermost
+COPY --from=server-builder --chown=2000:2000 \
+    /out/mmctl /mattermost/bin/mmctl
 
 # Replace the compiled webapp.
 # The official image serves static files from /mattermost/client/.

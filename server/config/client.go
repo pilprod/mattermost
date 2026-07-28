@@ -324,6 +324,7 @@ func GenerateLimitedClientConfig(c *model.Config, telemetryID string, license *m
 	props["TermsOfServiceLink"] = *c.SupportSettings.TermsOfServiceLink
 	props["PrivacyPolicyLink"] = *c.SupportSettings.PrivacyPolicyLink
 	props["AboutLink"] = *c.SupportSettings.AboutLink
+	props["BuildSourceURL"] = model.BuildSourceURL
 	props["HelpLink"] = *c.SupportSettings.HelpLink
 	props["ReportAProblemType"] = *c.SupportSettings.ReportAProblemType
 	props["ReportAProblemLink"] = *c.SupportSettings.ReportAProblemLink

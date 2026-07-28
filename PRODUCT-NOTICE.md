@@ -15,8 +15,8 @@ deployed server over a network must be offered the exact Corresponding Source
 for that deployed version.
 
 The source location for a particular image is recorded in the
-`org.opencontainers.image.source` OCI label. Deployments must also expose the
-same source location through the application's About link.
+`org.opencontainers.image.source` OCI label, compiled into the server, and
+displayed through the **Source Code** link in the application's About dialog.
 
 Separately deployed clients and services are not covered by this notice merely
 because they communicate with the server through documented network APIs.

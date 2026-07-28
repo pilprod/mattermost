@@ -209,6 +209,19 @@ export default function AboutBuildModal(props: Props) {
         </ExternalLink>
     );
 
+    const sourceCode = config.BuildSourceURL ? (
+        <ExternalLink
+            id='sourceCodeLink'
+            location='about_build_modal'
+            href={config.BuildSourceURL}
+        >
+            <FormattedMessage
+                id='about.sourceCode'
+                defaultMessage='Source Code'
+            />
+        </ExternalLink>
+    ) : null;
+
     const getServerVersionString = () => {
         const version = config.BuildNumber === 'dev' ? config.BuildNumber : config.Version;
         const fipsSuffix = config.IsFipsEnabled === 'true' ? ' (FIPS)' : '';
@@ -384,6 +397,12 @@ export default function AboutBuildModal(props: Props) {
                             {termsOfService}
                             {' - '}
                             {privacyPolicy}
+                            {sourceCode && (
+                                <>
+                                    {' - '}
+                                    {sourceCode}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

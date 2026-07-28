@@ -15,8 +15,21 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/v8/cmd/mmctl/client"
 	"github.com/mattermost/mattermost/server/v8/cmd/mmctl/printer"
-	"github.com/mattermost/mattermost/server/v8/enterprise/message_export/shared"
 	"github.com/spf13/cobra"
+)
+
+// These API payload keys are part of the public jobs API contract. Keeping
+// them local prevents the public mmctl binary from importing Mattermost's
+// source-available message export implementation.
+const (
+	complianceJobDataInitiatedBy    = "initiated_by"
+	complianceJobDataExportType     = "export_type"
+	complianceJobDataBatchStartID   = "batch_start_id"
+	complianceJobDataJobStartID     = "job_start_id"
+	complianceJobDataBatchStartTime = "batch_start_time"
+	complianceJobDataJobStartTime   = "job_start_time"
+	complianceJobDataJobEndTime     = "job_end_time"
+	complianceJobDataExportDir      = "export_dir"
 )
 
 var ComplianceExportCmd = &cobra.Command{
@@ -191,16 +204,16 @@ func complianceExportCreateCmdF(c client.Client, command *cobra.Command, args []
 	// If start and end are 0, we need to not set those keys in the job data.
 	// This will make the job like a manual job (it will pick up where the previous job left off).
 	data := model.StringMap{
-		shared.JobDataInitiatedBy:  "mmctl",
-		shared.JobDataExportType:   exportType,
-		shared.JobDataBatchStartId: "",
-		shared.JobDataJobStartId:   "",
+		complianceJobDataInitiatedBy:  "mmctl",
+		complianceJobDataExportType:   exportType,
+		complianceJobDataBatchStartID: "",
+		complianceJobDataJobStartID:   "",
 	}
 	if startTimestamp != 0 && endTimestamp != 0 {
-		data[shared.JobDataBatchStartTime] = startTime
-		data[shared.JobDataJobStartTime] = startTime
-		data[shared.JobDataJobEndTime] = endTime
-		data[shared.JobDataExportDir] = exportDir
+		data[complianceJobDataBatchStartTime] = startTime
+		data[complianceJobDataJobStartTime] = startTime
+		data[complianceJobDataJobEndTime] = endTime
+		data[complianceJobDataExportDir] = exportDir
 	}
 
 	job := &model.Job{

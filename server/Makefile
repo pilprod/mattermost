@@ -56,29 +56,13 @@ MMCTL_LDFLAGS += -X "$(MMCTL_PKG).gitCommit=$(MMCTL_GIT_COMMIT)"
 MMCTL_LDFLAGS += -X "$(MMCTL_PKG).gitTreeState=$(MMCTL_GIT_TREE_STATE)"
 MMCTL_LDFLAGS += -X "$(MMCTL_PKG).commitDate=$(MMCTL_COMMIT_DATE)"
 
-# Enterprise
-BUILD_ENTERPRISE_DIR ?= ../../enterprise
-BUILD_ENTERPRISE ?= true
+# YourOwn.Chat product builds are permanently Team-only. Proprietary product
+# services must integrate over documented network APIs, never through an
+# enterprise sibling repository or in-process build tags.
+BUILD_ENTERPRISE := false
 BUILD_ENTERPRISE_READY = false
 BUILD_TYPE_NAME = team
 BUILD_HASH_ENTERPRISE = none
-ifneq ($(wildcard $(BUILD_ENTERPRISE_DIR)/.),)
-	MMCTL_TESTFLAGS += -ldflags '-X "$(MMCTL_PKG).EnableEnterpriseTests=true" -X "github.com/mattermost/mattermost/server/public/model.BuildEnterpriseReady=true"'
-	MMCTL_BUILD_TAGS += enterprise
-
-  ifeq ($(BUILD_ENTERPRISE),true)
-	BUILD_ENTERPRISE_READY = true
-	BUILD_TYPE_NAME = enterprise
-	BUILD_HASH_ENTERPRISE = $(shell cd $(BUILD_ENTERPRISE_DIR) && git rev-parse HEAD)
-	BUILD_TAGS += enterprise
-  else
-	BUILD_ENTERPRISE_READY = false
-	BUILD_TYPE_NAME = team
-  endif
-else
-	BUILD_ENTERPRISE_READY = false
-	BUILD_TYPE_NAME = team
-endif
 
 FIPS_ENABLED ?= false
 ifeq ($(FIPS_ENABLED),true)
@@ -88,11 +72,6 @@ endif
 # Clean up the old means of importing enterprise source, if it exists
 ifneq ($(wildcard channels/imports/imports.go),)
 	IGNORE := $(shell rm -f channels/imports/imports.go)
-endif
-
-# Source available, already included with enterprise but also available during development.
-ifeq ($(BUILD_NUMBER),dev)
-	BUILD_TAGS += sourceavailable
 endif
 
 # Webapp
@@ -183,13 +162,8 @@ ifeq ($(FIPS_ENABLED),true)
 	PLUGIN_PACKAGES += mattermost-plugin-boards-v9.3.0%2Bd454327-fips
 endif
 
-EE_PACKAGES=$(shell $(GO) list $(BUILD_ENTERPRISE_DIR)/...)
-
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-  ALL_PACKAGES=$(TE_PACKAGES) $(EE_PACKAGES)
-else
-  ALL_PACKAGES=$(TE_PACKAGES)
-endif
+EE_PACKAGES=
+ALL_PACKAGES=$(TE_PACKAGES)
 
 CONFIG_FILE_PATH ?= ./config/config.json
 
@@ -455,10 +429,8 @@ test-compile: setup-go-work gotestsum ## Compile tests.
 	done
 
 modules-tidy: setup-go-work ## Tidy Go modules
-	mv enterprise/external_imports.go enterprise/external_imports.go.orig
 	-$(GO) mod tidy
 	-cd public && $(GO) mod tidy
-	mv enterprise/external_imports.go.orig enterprise/external_imports.go
 
 test-server-pre: check-prereqs-enterprise start-docker gotestsum golang-versions ## Runs tests.
 ifeq ($(BUILD_ENTERPRISE_READY),true)
@@ -502,27 +474,27 @@ endif
 test-server-ee: export GOTESTSUM_FORMAT := $(GOTESTSUM_FORMAT)
 test-server-ee: export GOTESTSUM_JUNITFILE := $(GOTESTSUM_JUNITFILE)
 test-server-ee: export GOTESTSUM_JSONFILE := $(GOTESTSUM_JSONFILE)
-test-server-ee: check-prereqs-enterprise start-docker gotestsum ## Runs EE tests.
-	@echo Running only EE tests
-	$(GOBIN)/gotestsum --packages="$(EE_PACKAGES)" -- $(GOFLAGS) -timeout=20m
+test-server-ee: ## Enterprise sources are intentionally unavailable.
+	@echo "Enterprise tests are not part of the YourOwn.Chat public server"
+	@false
 
-ES_PACKAGES=$(shell $(GO) list ./enterprise/elasticsearch/...)
+ES_PACKAGES=
 
 test-server-elasticsearch: export GOTESTSUM_FORMAT := $(GOTESTSUM_FORMAT)
 test-server-elasticsearch: export GOTESTSUM_JUNITFILE := $(GOTESTSUM_JUNITFILE)
 test-server-elasticsearch: export GOTESTSUM_JSONFILE := $(GOTESTSUM_JSONFILE)
-test-server-elasticsearch: check-prereqs-enterprise start-docker gotestsum ## Runs Elasticsearch tests.
-	@echo Running only Elasticsearch tests
-	$(GOBIN)/gotestsum --rerun-fails=3 --packages="$(ES_PACKAGES)" -- $(GOFLAGS) -timeout=20m
+test-server-elasticsearch: ## Source-available Elasticsearch is intentionally unavailable.
+	@echo "Source-available Elasticsearch is not part of the YourOwn.Chat public server"
+	@false
 
-OS_PACKAGES=$(shell $(GO) list ./enterprise/elasticsearch/opensearch/...)
+OS_PACKAGES=
 
 test-server-opensearch: export GOTESTSUM_FORMAT := $(GOTESTSUM_FORMAT)
 test-server-opensearch: export GOTESTSUM_JUNITFILE := $(GOTESTSUM_JUNITFILE)
 test-server-opensearch: export GOTESTSUM_JSONFILE := $(GOTESTSUM_JSONFILE)
-test-server-opensearch: check-prereqs-enterprise start-docker gotestsum ## Runs OpenSearch tests.
-	@echo Running only OpenSearch tests
-	$(GOBIN)/gotestsum --rerun-fails=3 --packages="$(OS_PACKAGES)" -- $(GOFLAGS) -timeout=20m
+test-server-opensearch: ## Source-available OpenSearch is intentionally unavailable.
+	@echo "Source-available OpenSearch is not part of the YourOwn.Chat public server"
+	@false
 
 test-server-quick: export GOTESTSUM_FORMAT := $(GOTESTSUM_FORMAT)
 test-server-quick: export GOTESTSUM_JUNITFILE := $(GOTESTSUM_JUNITFILE)
