@@ -38,6 +38,13 @@ The product image is built only by the repository-root `Dockerfile`.
   `PRODUCT-NOTICE.md`.
 - The final image must set `org.opencontainers.image.source` to the exact
   public commit or immutable source archive used for that image.
+- The final image must record the same commit, source tag, and build timestamp
+  in the OCI `revision`, `version`, and `created` labels.
+- Cloud Build must publish BuildKit SBOM and max-mode provenance attestations
+  for the immutable image digest. The SBOM is the machine-readable dependency
+  and declared-license inventory; `LICENSE.txt`, `NOTICE.txt`, and
+  `PRODUCT-NOTICE.md` remain the human-readable license record shipped in the
+  image.
 
 The upstream `server/enterprise` directory exists in Mattermost history but is
 deleted from the product branch and excluded defensively from the Docker
@@ -87,9 +94,12 @@ obligations nor grants rights to Mattermost trademarks.
 4. Confirm the About link points to the same immutable source.
 5. Inspect `mattermost version`; Enterprise Ready must be `false`.
 6. Inspect the final OCI labels and `/mattermost/licenses/`.
-7. Publish the source before or at the same time as the network deployment.
-8. Record third-party dependency and vulnerability reports with the release.
-9. Require human approval when the dependency graph, licensing boundary, or
+7. Run `scripts/verify-product-image.sh` against the exact pushed image.
+8. Confirm the registry digest has SBOM and provenance attestations.
+9. Publish the source before or at the same time as the network deployment.
+10. Record third-party dependency, declared-license, and vulnerability reports
+   with the release.
+11. Require human approval when the dependency graph, licensing boundary, or
    Corresponding Source location changes.
 
 ## Provenance rules for new code

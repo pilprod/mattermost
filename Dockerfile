@@ -49,6 +49,10 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     test -n "$SOURCE_URL" || \
         (echo "FATAL: SOURCE_URL must identify the immutable Corresponding Source" && exit 1); \
+    printf '%s\n' "$BUILD_HASH" | grep -Eq '^[0-9a-f]{40}$' || \
+        (echo "FATAL: BUILD_HASH must be a full lowercase Git commit SHA" && exit 1); \
+    test "$SOURCE_URL" = "https://github.com/pilprod/mattermost/tree/$BUILD_HASH" || \
+        (echo "FATAL: SOURCE_URL must identify the exact BUILD_HASH" && exit 1); \
     MODEL=github.com/mattermost/mattermost/server/public/model; \
     LDFLAGS="-s -w"; \
     LDFLAGS="$LDFLAGS -X $MODEL.BuildNumber=$BUILD_NUMBER"; \
@@ -79,10 +83,18 @@ RUN go version /out/mmctl | grep -q 'go1\.26\.5' \
 FROM mattermost/mattermost-team-edition:11.9 AS runtime
 
 ARG SOURCE_URL
+ARG BUILD_NUMBER
+ARG BUILD_HASH
+ARG BUILD_DATE
 
 LABEL org.opencontainers.image.title="YourOwn.Chat Server" \
       org.opencontainers.image.description="AGPL collaboration server based on Mattermost Team Edition" \
       org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.url="https://github.com/pilprod/mattermost" \
+      org.opencontainers.image.documentation="https://github.com/pilprod/mattermost/blob/${BUILD_HASH}/docs/product-compliance.md" \
+      org.opencontainers.image.revision="${BUILD_HASH}" \
+      org.opencontainers.image.version="${BUILD_NUMBER}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
 USER root

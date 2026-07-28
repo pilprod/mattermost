@@ -10,6 +10,7 @@ on:
       - PRODUCT-NOTICE.md
       - docs/product-compliance.md
       - scripts/verify-product-compliance.sh
+      - scripts/verify-product-image.sh
       - server/**
       - webapp/**
   push:

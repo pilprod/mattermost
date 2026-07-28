@@ -15,7 +15,8 @@ for required_file in \
     "$repo_root/NOTICE.txt" \
     "$repo_root/PRODUCT-NOTICE.md" \
     "$repo_root/.dockerignore" \
-    "$repo_root/docs/product-compliance.md"; do
+    "$repo_root/docs/product-compliance.md" \
+    "$repo_root/scripts/verify-product-image.sh"; do
     test -s "$required_file" || fail "missing required file: $required_file"
 done
 
@@ -31,8 +32,20 @@ grep -q 'BuildHashEnterprise=none' "$dockerfile" ||
 grep -q 'org.opencontainers.image.source=' "$dockerfile" ||
     fail "OCI source label is missing"
 
+for required_label in \
+    org.opencontainers.image.revision \
+    org.opencontainers.image.version \
+    org.opencontainers.image.created \
+    org.opencontainers.image.licenses; do
+    grep -q "$required_label=" "$dockerfile" ||
+        fail "OCI provenance label is missing: $required_label"
+done
+
 grep -q 'BuildSourceURL=' "$dockerfile" ||
     fail "server binary does not embed the Corresponding Source URL"
+
+grep -q 'SOURCE_URL.*exact BUILD_HASH' "$dockerfile" ||
+    fail "build does not bind the Corresponding Source URL to the exact revision"
 
 grep -q 'LICENSE.txt NOTICE.txt PRODUCT-NOTICE.md /mattermost/licenses/' "$dockerfile" ||
     fail "license and notice files are not copied into the final image"
@@ -78,6 +91,9 @@ grep -q "id='sourceCodeLink'" "$repo_root/webapp/channels/src/components/about_b
 if test -d "$repo_root/../enterprise"; then
     fail "private enterprise sibling repository is present next to the product source"
 fi
+
+sh -n "$repo_root/scripts/verify-product-image.sh" ||
+    fail "product image verification script has invalid shell syntax"
 
 if command -v go >/dev/null 2>&1; then
     temp_dir=$(mktemp -d)
