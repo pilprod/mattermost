@@ -55,12 +55,29 @@ printf '%s\n' "$version_output" |
     grep -Fq "Build Enterprise Ready: false" ||
     fail "server binary is not a Team-only build"
 
-docker run --rm --entrypoint /bin/sh "$image" -ceu '
-    test -s /mattermost/licenses/LICENSE.txt
-    test -s /mattermost/licenses/NOTICE.txt
-    test -s /mattermost/licenses/PRODUCT-NOTICE.md
-    grep -Fq "GNU Affero General Public License" /mattermost/licenses/LICENSE.txt
-    grep -Fq "YourOwn.Chat Server modification notice" /mattermost/licenses/PRODUCT-NOTICE.md
-' || fail "required license and attribution files are missing from the image"
+license_dir=$(mktemp -d)
+license_container=
+cleanup() {
+    if [ -n "$license_container" ]; then
+        docker rm -f "$license_container" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$license_dir"
+}
+trap cleanup EXIT HUP INT TERM
+
+# The production image is intentionally distroless and has no /bin/sh.
+# Inspect its filesystem from a stopped container instead of executing tools
+# inside the image.
+license_container=$(docker create "$image")
+docker cp "$license_container:/mattermost/licenses/." "$license_dir" ||
+    fail "required license and attribution files are missing from the image"
+
+test -s "$license_dir/LICENSE.txt" &&
+    test -s "$license_dir/NOTICE.txt" &&
+    test -s "$license_dir/PRODUCT-NOTICE.md" &&
+    grep -Fq "GNU Affero General Public License" "$license_dir/LICENSE.txt" &&
+    grep -Fq "YourOwn.Chat Server modification notice" \
+        "$license_dir/PRODUCT-NOTICE.md" ||
+    fail "required license and attribution files are missing from the image"
 
 printf '%s\n' 'product image verification passed'
