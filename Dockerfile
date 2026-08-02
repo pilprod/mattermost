@@ -99,6 +99,25 @@ LABEL org.opencontainers.image.title="YourOwn.Chat Server" \
 
 USER root
 
+# The upstream Team image used for the patched 11.9 build does not contain the
+# Calls bundle. Keep the test-only delivery deterministic by prepackaging the
+# official, signed linux/amd64 bundle instead of enabling plugin uploads or
+# downloading code at runtime. Mattermost verifies the adjacent signature when
+# its signature policy is enabled and honours its own edition/license behaviour;
+# this image does not modify, suppress, or bypass those checks.
+#
+# Calls v1.12.1 was the current stable bundle when Mattermost 11.9.0 was cut.
+# The checksum pins the release asset independently of mutable GitHub URLs.
+ARG CALLS_PLUGIN_VERSION=v1.12.1
+ARG CALLS_PLUGIN_SHA256=23b7ed5cde46d931c290b97a514224956a0fe3ce4fa2a9ef9c6990e5e150e863
+ARG CALLS_PLUGIN_SIGNATURE_SHA256=f627b9b47bdd5faad0425cdf55e7e34f0bee34557e2a6d162160e512d7d5fda1
+ADD --checksum=sha256:${CALLS_PLUGIN_SHA256} --chown=2000:2000 \
+  https://github.com/mattermost/mattermost-plugin-calls/releases/download/${CALLS_PLUGIN_VERSION}/mattermost-plugin-calls-${CALLS_PLUGIN_VERSION}-linux-amd64.tar.gz \
+  /mattermost/prepackaged_plugins/mattermost-plugin-calls-${CALLS_PLUGIN_VERSION}-linux-amd64.tar.gz
+ADD --checksum=sha256:${CALLS_PLUGIN_SIGNATURE_SHA256} --chown=2000:2000 \
+  https://github.com/mattermost/mattermost-plugin-calls/releases/download/${CALLS_PLUGIN_VERSION}/mattermost-plugin-calls-${CALLS_PLUGIN_VERSION}-linux-amd64.tar.gz.sig \
+  /mattermost/prepackaged_plugins/mattermost-plugin-calls-${CALLS_PLUGIN_VERSION}-linux-amd64.tar.gz.sig
+
 # Replace both public binaries.
 COPY --from=server-builder --chown=2000:2000 \
     /out/mattermost /mattermost/bin/mattermost
