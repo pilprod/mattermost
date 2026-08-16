@@ -25,6 +25,12 @@ is versioned and released independently from `pilprod/yourown-chat-web`.
 - Supplies the public feature metadata needed by the independently implemented
   OIDC and Keycloak group paths. It does not import Mattermost Enterprise code.
 
+## Security maintenance
+
+- Updates `google.golang.org/grpc` to `v1.82.1` in both public Go modules. The
+  product image vulnerability gate requires this version to remediate
+  `GHSA-hrxh-6v49-42gf`.
+
 ## Release boundary
 
 The server fork no longer owns a Dockerfile or webapp patches. Image assembly,
