@@ -1328,6 +1328,7 @@ type SSOSettings struct {
 	ButtonText           *string `access:"authentication_openid"` // telemetry: none
 	ButtonColor          *string `access:"authentication_openid"` // telemetry: none
 	UsePreferredUsername *bool   `access:"authentication_openid"` // telemetry: none
+	AllowedDomains       *string `access:"authentication_openid"` // telemetry: none
 }
 
 func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userAPIEndpoint, buttonColor string) {
@@ -1374,6 +1375,10 @@ func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userAPIEnd
 	// Note: Preferred username is not supported for Google.
 	if s.UsePreferredUsername == nil {
 		s.UsePreferredUsername = new(false)
+	}
+
+	if s.AllowedDomains == nil {
+		s.AllowedDomains = new("")
 	}
 }
 

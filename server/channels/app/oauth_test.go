@@ -1614,6 +1614,32 @@ func TestParseOAuthStateTokenExtra(t *testing.T) {
 	})
 }
 
+func TestParseOAuthStateTokenExtraWithNonce(t *testing.T) {
+	email, action, cookie, nonce, err := parseOAuthStateTokenExtraWithNonce("user@example.com:email_to_sso:randomcookie123:expected-nonce")
+	require.NoError(t, err)
+	assert.Equal(t, "user@example.com", email)
+	assert.Equal(t, "email_to_sso", action)
+	assert.Equal(t, "randomcookie123", cookie)
+	assert.Equal(t, "expected-nonce", nonce)
+
+	email, action, cookie, nonce, err = parseOAuthStateTokenExtraWithNonce("user@example.com:email_to_sso:randomcookie123")
+	require.NoError(t, err)
+	assert.Equal(t, "user@example.com", email)
+	assert.Equal(t, "email_to_sso", action)
+	assert.Equal(t, "randomcookie123", cookie)
+	assert.Empty(t, nonce)
+}
+
+func TestParseOAuthStateTokenExtraWithOIDCSecurity(t *testing.T) {
+	email, action, cookie, nonce, verifier, err := parseOAuthStateTokenExtraWithOIDCSecurity("user@example.com:email_to_sso:randomcookie123:expected-nonce:pkce-verifier")
+	require.NoError(t, err)
+	assert.Equal(t, "user@example.com", email)
+	assert.Equal(t, "email_to_sso", action)
+	assert.Equal(t, "randomcookie123", cookie)
+	assert.Equal(t, "expected-nonce", nonce)
+	assert.Equal(t, "pkce-verifier", verifier)
+}
+
 func TestAuthorizeOAuthUser_InvalidToken(t *testing.T) {
 	mainHelper.Parallel(t)
 	th := Setup(t)

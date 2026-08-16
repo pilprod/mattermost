@@ -6,6 +6,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -993,7 +994,17 @@ func (a *App) GetAuthorizationCode(rctx request.CTX, w http.ResponseWriter, r *h
 	endpoint := *sso.AuthEndpoint
 	scope := *sso.Scope
 
-	tokenExtra := generateOAuthStateTokenExtra(props["email"], props["action"], cookieValue)
+	nonce := ""
+	codeVerifier := ""
+	for _, requestedScope := range strings.Fields(scope) {
+		if requestedScope == "openid" {
+			nonce = model.NewId()
+			codeVerifier = model.NewId() + model.NewId()
+			break
+		}
+	}
+
+	tokenExtra := generateOAuthStateTokenExtraWithOIDCSecurity(props["email"], props["action"], cookieValue, nonce, codeVerifier)
 	stateToken, err := a.CreateOAuthStateToken(tokenExtra)
 	if err != nil {
 		return "", err
@@ -1013,6 +1024,12 @@ func (a *App) GetAuthorizationCode(rctx request.CTX, w http.ResponseWriter, r *h
 
 	if scope != "" {
 		authURL += "&scope=" + utils.URLEncode(scope)
+	}
+
+	if nonce != "" {
+		authURL += "&nonce=" + url.QueryEscape(nonce)
+		challenge := sha256.Sum256([]byte(codeVerifier))
+		authURL += "&code_challenge=" + b64.RawURLEncoding.EncodeToString(challenge[:]) + "&code_challenge_method=S256"
 	}
 
 	if loginHint != "" {
@@ -1058,7 +1075,7 @@ func (a *App) AuthorizeOAuthUser(rctx request.CTX, w http.ResponseWriter, r *htt
 		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.invalid_state.app_error", nil, "", http.StatusBadRequest).Wrap(cookieErr)
 	}
 
-	tokenEmail, tokenAction, tokenCookie, parseErr := parseOAuthStateTokenExtra(expectedToken.Extra)
+	tokenEmail, tokenAction, tokenCookie, expectedNonce, codeVerifier, parseErr := parseOAuthStateTokenExtraWithOIDCSecurity(expectedToken.Extra)
 	if parseErr != nil {
 		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.invalid_state.app_error", nil, "", http.StatusBadRequest).Wrap(parseErr)
 	}
@@ -1090,6 +1107,9 @@ func (a *App) AuthorizeOAuthUser(rctx request.CTX, w http.ResponseWriter, r *htt
 	p.Set("code", code)
 	p.Set("grant_type", model.AccessTokenGrantType)
 	p.Set("redirect_uri", redirectURI)
+	if codeVerifier != "" {
+		p.Set("code_verifier", codeVerifier)
+	}
 
 	req, requestErr := http.NewRequest("POST", *sso.TokenEndpoint, strings.NewReader(p.Encode()))
 	if requestErr != nil {
@@ -1105,28 +1125,29 @@ func (a *App) AuthorizeOAuthUser(rctx request.CTX, w http.ResponseWriter, r *htt
 	}
 	defer resp.Body.Close()
 
-	var buf bytes.Buffer
-	tee := io.TeeReader(resp.Body, &buf)
 	var ar *model.AccessResponse
-	err = json.NewDecoder(tee).Decode(&ar)
+	err = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&ar)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.bad_response.app_error", nil, fmt.Sprintf("response_body=%s, status_code=%d, error=%v", buf.String(), resp.StatusCode, err), http.StatusInternalServerError).Wrap(err)
+		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.bad_response.app_error", nil, fmt.Sprintf("status_code=%d, error=%v", resp.StatusCode, err), http.StatusInternalServerError).Wrap(err)
 	}
 
 	if strings.ToLower(ar.TokenType) != model.AccessTokenType {
-		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.bad_token.app_error", nil, "token_type="+ar.TokenType+", response_body="+buf.String(), http.StatusInternalServerError)
+		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.bad_token.app_error", nil, "token_type="+ar.TokenType, http.StatusInternalServerError)
 	}
 
 	if ar.AccessToken == "" {
-		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.missing.app_error", nil, "response_body="+buf.String(), http.StatusInternalServerError)
+		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.missing.app_error", nil, "", http.StatusInternalServerError)
 	}
 
 	p = url.Values{}
 	p.Set("access_token", ar.AccessToken)
 
 	var userFromToken *model.User
+	if expectedNonce != "" && ar.IdToken == "" {
+		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.missing.app_error", nil, "OIDC token response is missing id_token", http.StatusInternalServerError)
+	}
 	if ar.IdToken != "" {
-		userFromToken, err = provider.GetUserFromIdToken(rctx, ar.IdToken)
+		userFromToken, err = provider.GetUserFromIdToken(rctx, ar.IdToken, sso, expectedNonce)
 		if err != nil {
 			return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.token_failed.app_error", nil, "", http.StatusInternalServerError).Wrap(err)
 		}
@@ -1148,10 +1169,10 @@ func (a *App) AuthorizeOAuthUser(rctx request.CTX, w http.ResponseWriter, r *htt
 		defer resp.Body.Close()
 
 		// Ignore the error below because the resulting string will just be the empty string if bodyBytes is nil
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		bodyString := string(bodyBytes)
 
-		rctx.Logger().Error("Error getting OAuth user", mlog.Int("response", resp.StatusCode), mlog.String("body_string", bodyString))
+		rctx.Logger().Error("Error getting OAuth user", mlog.Int("response", resp.StatusCode))
 
 		if service == model.ServiceGitlab && resp.StatusCode == http.StatusForbidden && strings.Contains(bodyString, "Terms of Service") {
 			url, err := url.Parse(*sso.UserAPIEndpoint)
@@ -1162,7 +1183,7 @@ func (a *App) AuthorizeOAuthUser(rctx request.CTX, w http.ResponseWriter, r *htt
 			return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "oauth.gitlab.tos.error", map[string]any{"URL": url.Hostname()}, "", http.StatusBadRequest)
 		}
 
-		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.response.app_error", nil, "response_body="+bodyString, http.StatusInternalServerError)
+		return nil, stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.response.app_error", nil, "status_code="+strconv.Itoa(resp.StatusCode), http.StatusInternalServerError)
 	}
 
 	// Note that resp.Body is not closed here, so it must be closed by the caller
@@ -1257,6 +1278,13 @@ func generateOAuthStateTokenExtra(email, action, cookie string) string {
 	return email + ":" + action + ":" + cookie
 }
 
+func generateOAuthStateTokenExtraWithOIDCSecurity(email, action, cookie, nonce, codeVerifier string) string {
+	if nonce == "" || codeVerifier == "" {
+		return generateOAuthStateTokenExtra(email, action, cookie)
+	}
+	return email + ":" + action + ":" + cookie + ":" + nonce + ":" + codeVerifier
+}
+
 func (a *App) GetAuthorizationServerMetadata(rctx request.CTX) (*model.AuthorizationServerMetadata, *model.AppError) {
 	if !*a.Config().ServiceSettings.EnableOAuthServiceProvider {
 		return nil, model.NewAppError("GetAuthorizationServerMetadata", "api.oauth.authorization_server_metadata.disabled.app_error", nil, "", http.StatusNotImplemented)
@@ -1309,17 +1337,39 @@ func (a *App) RegisterOAuthClient(rctx request.CTX, req *model.ClientRegistratio
 	return oauthApp, nil
 }
 
-// parseOAuthStateTokenExtra parses a token extra string in the format "email:action:cookie".
-// Returns an error if the token does not contain exactly 3 colon-separated parts.
+// parseOAuthStateTokenExtra parses the legacy "email:action:cookie" format.
 func parseOAuthStateTokenExtra(tokenExtra string) (email, action, cookie string, err error) {
 	parts := strings.Split(tokenExtra, ":")
 	if len(parts) != 3 {
 		return "", "", "", fmt.Errorf("invalid token format: expected exactly 3 parts separated by ':', got %d", len(parts))
 	}
+	return parts[0], parts[1], parts[2], nil
+}
+
+// parseOAuthStateTokenExtraWithNonce supports both the legacy 3-part format
+// and the OIDC 4-part format that binds a nonce to the one-time state token.
+func parseOAuthStateTokenExtraWithNonce(tokenExtra string) (email, action, cookie, nonce string, err error) {
+	email, action, cookie, nonce, _, err = parseOAuthStateTokenExtraWithOIDCSecurity(tokenExtra)
+	return email, action, cookie, nonce, err
+}
+
+// parseOAuthStateTokenExtraWithOIDCSecurity also reads the PKCE verifier that
+// is bound to the same one-time server-side token as the state cookie and nonce.
+func parseOAuthStateTokenExtraWithOIDCSecurity(tokenExtra string) (email, action, cookie, nonce, codeVerifier string, err error) {
+	parts := strings.Split(tokenExtra, ":")
+	if len(parts) != 3 && len(parts) != 4 && len(parts) != 5 {
+		return "", "", "", "", "", fmt.Errorf("invalid token format: expected 3, 4, or 5 parts separated by ':', got %d", len(parts))
+	}
 
 	email = parts[0]
 	action = parts[1]
 	cookie = parts[2]
+	if len(parts) >= 4 {
+		nonce = parts[3]
+	}
+	if len(parts) == 5 {
+		codeVerifier = parts[4]
+	}
 
-	return email, action, cookie, nil
+	return email, action, cookie, nonce, codeVerifier, nil
 }

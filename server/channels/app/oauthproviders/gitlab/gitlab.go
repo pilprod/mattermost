@@ -110,7 +110,7 @@ func (gp *GitLabProvider) GetSSOSettings(_ request.CTX, config *model.Config, se
 	return &config.GitLabSettings, nil
 }
 
-func (gp *GitLabProvider) GetUserFromIdToken(_ request.CTX, idToken string) (*model.User, error) {
+func (gp *GitLabProvider) GetUserFromIdToken(_ request.CTX, idToken string, _ *model.SSOSettings, _ string) (*model.User, error) {
 	return nil, nil
 }
 

@@ -47,9 +47,9 @@ func (_m *OAuthProvider) GetSSOSettings(rctx request.CTX, config *model.Config, 
 	return r0, r1
 }
 
-// GetUserFromIdToken provides a mock function with given fields: rctx, idToken
-func (_m *OAuthProvider) GetUserFromIdToken(rctx request.CTX, idToken string) (*model.User, error) {
-	ret := _m.Called(rctx, idToken)
+// GetUserFromIdToken provides a mock function with given fields: rctx, idToken, settings, expectedNonce
+func (_m *OAuthProvider) GetUserFromIdToken(rctx request.CTX, idToken string, settings *model.SSOSettings, expectedNonce string) (*model.User, error) {
+	ret := _m.Called(rctx, idToken, settings, expectedNonce)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserFromIdToken")
@@ -57,19 +57,19 @@ func (_m *OAuthProvider) GetUserFromIdToken(rctx request.CTX, idToken string) (*
 
 	var r0 *model.User
 	var r1 error
-	if rf, ok := ret.Get(0).(func(request.CTX, string) (*model.User, error)); ok {
-		return rf(rctx, idToken)
+	if rf, ok := ret.Get(0).(func(request.CTX, string, *model.SSOSettings, string) (*model.User, error)); ok {
+		return rf(rctx, idToken, settings, expectedNonce)
 	}
-	if rf, ok := ret.Get(0).(func(request.CTX, string) *model.User); ok {
-		r0 = rf(rctx, idToken)
+	if rf, ok := ret.Get(0).(func(request.CTX, string, *model.SSOSettings, string) *model.User); ok {
+		r0 = rf(rctx, idToken, settings, expectedNonce)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.User)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(request.CTX, string) error); ok {
-		r1 = rf(rctx, idToken)
+	if rf, ok := ret.Get(1).(func(request.CTX, string, *model.SSOSettings, string) error); ok {
+		r1 = rf(rctx, idToken, settings, expectedNonce)
 	} else {
 		r1 = ret.Error(1)
 	}

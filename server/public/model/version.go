@@ -157,6 +157,7 @@ var BuildDate string
 var BuildHash string
 var BuildHashEnterprise string
 var BuildEnterpriseReady string
+var BuildSourceURL string
 var versionsWithoutHotFixes []string
 
 func init() {

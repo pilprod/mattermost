@@ -763,7 +763,7 @@ func (m *MattermostTestProvider) GetSSOSettings(_ request.CTX, config *model.Con
 	return &config.GitLabSettings, nil
 }
 
-func (m *MattermostTestProvider) GetUserFromIdToken(_ request.CTX, token string) (*model.User, error) {
+func (m *MattermostTestProvider) GetUserFromIdToken(_ request.CTX, token string, _ *model.SSOSettings, _ string) (*model.User, error) {
 	return nil, nil
 }
 
