@@ -22,21 +22,28 @@ does not create or override policy.
 Explicitly import subdirectory instruction files that must always be in context:
 @server/AGENTS.md
 
-## Branches, Tags & Releases
+## Fork branches, source provenance, and product handoff
 
-This is a customized fork (`pilprod/mattermost`) that layers fork patches on top
-of official Mattermost **Team Edition** releases. Follow these rules for any
-branch/tag operation. **When in doubt, ask — never force-push or delete a shared
-ref without an archive and an explicit go-ahead.**
+This is a maintained source fork (`pilprod/mattermost`) that layers identifiable
+patches on official Mattermost **Team Edition** source. This repository owns
+patched server source and provenance only; it does not own the assembled product
+release. `pilprod/yourown-chat-mattermost` is the release owner. It pins the
+exact reviewed Mattermost server, web, and RTCD source commits and starts the
+authoritative product pipeline from its own immutable product tag.
 
-### Canonical fork branches (ours — treat as production)
-- **`public-patched`** — the live production branch. This is what CI builds and
-  what gets deployed. It always equals *the current supported upstream release +
-  all fork patches*. Keep its history linear (rebased patches on top of the
-  release tag), no merge commits.
+Follow these rules for any branch or tag operation. **When in doubt, ask — never
+force-push or delete a shared ref without an archive and an explicit go-ahead.**
+
+### Canonical fork branches (source only)
+- **`public-patched`** — the canonical current patched source branch. It becomes
+  an input to the Mattermost assembly only after its exact reviewed commit is
+  pinned by `pilprod/yourown-chat-mattermost`. It is not a production branch and
+  must not directly publish an image or deploy an environment. Keep its patch
+  history linear (rebased patches on top of the upstream release tag), with no
+  merge commits in the source patch series.
 - **`public-patched-<version>`** — version-pinned snapshots of the fork at a
   given upstream release (e.g. `public-patched-11.8.3`). The one matching the
-  current release is kept identical to `public-patched`; older ones (e.g.
+  current source base is kept identical to `public-patched`; older ones (e.g.
   `public-patched-11.8.1`) are **immutable archives** of a previous base. Do not
   rewrite or delete archives.
 
@@ -47,16 +54,16 @@ ref without an archive and an explicit go-ahead.**
   **fast-forward only**; if a fast-forward isn't possible, leave the branch and
   report it — do not force.
 
-### Tags
-- **`v<version>-patched`** is the **only** release-tag pattern (e.g.
-  `v11.8.3-patched`). CI builds an image on any
-  `v*-patched` tag and publishes `<image>:<tag>` **and** `<image>:latest`.
-- **No `-dev` tags/builds.** The `v*-patched-dev` tag pattern and its Cloud Build
-  path were removed on purpose — do not reintroduce them.
-- Upstream version tags (`v11.8.3`, `@mattermost/...`, etc.) are mirrored;
+### Source provenance tags
+- **`v<version>-patched`** (for example, `v11.10.0-patched`) is a fork source
+  provenance marker only. It must not start image publication, create or update
+  `latest`, create a delivery release, or roll out any environment.
+- Do not create `-dev` source tags or restore a fork-owned dev/prod build path.
+- Upstream version tags (`v11.10.0`, `@mattermost/...`, etc.) are mirrored;
   never move or delete them.
-- Moving a `-patched` release tag is done with `git tag -f` + `git push --force`
-  **only** for the fork's own tags.
+- Publishing, moving, or deleting a fork tag requires separate explicit
+  authorization and must preserve the exact old and new source revisions in the
+  handoff. A fork-tag operation never authorizes a product release.
 
 ### Porting the fork to a new upstream release
 1. Create `public-patched-<new>` from the new upstream tag and replay the fork
@@ -68,8 +75,18 @@ ref without an archive and an explicit go-ahead.**
 3. Build-verify Team Edition (`go build ./...` — see `server/AGENTS.md` and use a
    `go.work` linking `.` + `./public`; no enterprise sibling needed for TE).
 4. Archive the outgoing base as `public-patched-<old>`.
-5. Fast-forward `public-patched` to the new head, keep `public-patched-<new>` in
-   sync, and move/create the `v<new>-patched` tag.
+5. Update `public-patched` and `public-patched-<new>` to the reviewed source
+   head. If separately authorized, create the new `v<new>-patched` provenance
+   marker, then hand the exact commit to `pilprod/yourown-chat-mattermost`. Do
+   not build, publish, or deploy the assembled product from this fork.
+
+### Product release handoff
+
+After source verification, hand the exact reviewed commit and its provenance
+marker, when one is authorized, to `pilprod/yourown-chat-mattermost`. Work in
+this fork stops at source verification and handoff. The release-owning
+repository pins the reviewed server, web, and RTCD inputs before its product tag
+is created.
 
 ### Safety rules
 - Before any force-update of `public-patched`, first create an archival branch
@@ -94,4 +111,11 @@ When creating a pull request, follow `.github/PULL_REQUEST_TEMPLATE.md` exactly:
 
 This repository has a checked-in Cloud Agent environment under `.cursor/`. Docker is started by `.cursor/scripts/cloud-agent-start.sh`; if Docker is unavailable in Cloud, treat that as an environment failure rather than falling back to snapshot assumptions.
 
+The Cursor Docker environment is limited to repository-local verification and
+must not build or publish project release artifacts.
+
 The environment declares `mattermost/enterprise` as a Cursor multi-repo dependency. Cursor clones the repositories as siblings, so `server/Makefile` can use its default `../../enterprise` path; the install hook does not clone or symlink enterprise.
+
+The presence of an `enterprise` sibling is not license entitlement. Commercial
+or Enterprise source or features may be used only after the applicable
+entitlement is verified.
