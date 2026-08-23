@@ -21,6 +21,7 @@ permissions: {}
 
 jobs:
   tag-public-module:
+    if: github.repository == 'mattermost/mattermost'
     permissions:
       contents: write
     runs-on: ubuntu-22.04
